@@ -60,6 +60,13 @@
             ReferencedContainer = "container:Realmreader.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <EnvironmentVariables>
+         <EnvironmentVariable
+            key = "path"
+            value = "/Users/admin/.nvm/versions/node/v20.19.6/bin/node&#10;"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+      </EnvironmentVariables>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"

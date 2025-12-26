@@ -1,45 +1,80 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
+import "react-native-gesture-handler"; // 🔥 MUST BE FIRST
+import "./src/i18n";
+import RNBootSplash from 'react-native-bootsplash';
+import React, { useState, useEffect } from "react";
+import { StyleSheet, I18nManager, ActivityIndicator, View } from "react-native";
+import { NavigationContainer, DarkTheme, DefaultTheme } from "@react-navigation/native";
+import { RealmProvider } from "@realm/react";
+import { ThemeProvider, useTheme } from "./src/theme";
+import { AuthProvider } from "./src/auth/AuthContext";
+import RootNavigator from "./src/navigation/RootNavigator";
+import { Clients_details, balance, operation, currency } from "./src/models/Clients_details";
+import auth from "@react-native-firebase/auth"; // Changed to modular import
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
-import { NewAppScreen } from '@react-native/new-app-screen';
-import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+// RTL configuration
+I18nManager.allowRTL(true);
+I18nManager.forceRTL(false);
 
-function App() {
-  const isDarkMode = useColorScheme() === 'dark';
+function AppNavigation() {
+  const { isDark } = useTheme();
 
   return (
-    <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <AppContent />
-    </SafeAreaProvider>
+    <NavigationContainer theme={isDark ? DarkTheme : DefaultTheme}>
+      <RootNavigator />
+    </NavigationContainer>
   );
 }
 
-function AppContent() {
-  const safeAreaInsets = useSafeAreaInsets();
+// --- NEW COMPONENT TO HANDLE DYNAMIC REALM ---
+function RealmWrapper({ children }: { children: React.ReactNode }) {
+  const [userId, setUserId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+      RNBootSplash.hide({ fade: true });
+
+    // Listen for Firebase Auth changes
+    const unsubscribe = auth().onAuthStateChanged((user) => {
+      setUserId(user ? user.uid : "guest");
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  }
 
   return (
-    <View style={styles.container}>
-      <NewAppScreen
-        templateFileName="App.tsx"
-        safeAreaInsets={safeAreaInsets}
-      />
-    </View>
+    /* The 'key' prop is the secret: 
+      When userId changes, React destroys the old Realm and opens a new file.
+    */
+    <RealmProvider
+      key={userId} 
+      schema={[Clients_details, balance, operation, currency]}
+      schemaVersion={2}
+      path={userId ? `user_${userId}.realm` : "default.realm"}
+    >
+      {children}
+    </RealmProvider>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});
-
-export default App;
+export default function App() {
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider>
+        <AuthProvider>
+          <RealmWrapper>
+            <AppNavigation />
+          </RealmWrapper>
+        </AuthProvider>
+      </ThemeProvider>
+    </GestureHandlerRootView>
+  );
+}

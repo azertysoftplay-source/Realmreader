@@ -1,16 +1,16 @@
-source 'https://rubygems.org'
+# Gemfile
+# Specify Ruby version
+ruby "3.2.2"
 
-# You may use http://rbenv.org/ or https://rvm.io/ to install and use this version
-ruby ">= 2.6.10"
+# Use Bundler to isolate gems
+source "https://rubygems.org"
 
-# Exclude problematic versions of cocoapods and activesupport that causes build failures.
-gem 'cocoapods', '>= 1.13', '!= 1.15.0', '!= 1.15.1'
-gem 'activesupport', '>= 6.1.7.5', '!= 7.1.0'
-gem 'xcodeproj', '< 1.26.0'
-gem 'concurrent-ruby', '< 1.3.4'
+# CocoaPods for iOS dependency management
+gem "cocoapods", "1.16.2"
 
-# Ruby 3.4.0 has removed some libraries from the standard library.
-gem 'bigdecimal'
-gem 'logger'
-gem 'benchmark'
-gem 'mutex_m'
+# Optional: plugins to support React Native / Xcode projects
+gem "xcodeproj", "~> 1.27"
+gem "ffi", "~> 1.16"
+
+# Optional: if you plan to use Fastlane for builds/deploy
+# gem "fastlane", "~> 2.211"

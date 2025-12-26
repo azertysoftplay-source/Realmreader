@@ -1,0 +1,13 @@
+diff --git a/node_modules/react-native/ReactCommon/hermes-engine.podspec b/node_modules/react-native/ReactCommon/hermes-engine.podspec
+index 94e0281..abcd123 100644
+--- a/node_modules/react-native/ReactCommon/hermes-engine.podspec
++++ b/node_modules/react-native/ReactCommon/hermes-engine.podspec
+@@ -16,7 +16,7 @@ Pod::Spec.new do |s|
+   hermes_runtime_prebuilt = File.exist?(File.join(__dir__, "prebuilt", "hermes-engine", "destroot"))
+ 
+   # React Native decides whether to use prebuilt Hermes or not:
+-  use_prebuilt = ENV['USE_PREBUILT_HERMES'] == '1'
++  use_prebuilt = false
+ 
+   if use_prebuilt
+     Pod::UI.puts "Using prebuilt Hermes" 
