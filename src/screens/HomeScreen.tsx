@@ -13,8 +13,14 @@ import auth from "@react-native-firebase/auth";
 import i18n from "../i18n";
 import migrateFirestoreToRealm from "../helpers/firestoreToRealmSync";
 import { Operation, ClientsDetails } from "../realm/types";
+import { getAuth } from "@react-native-firebase/auth";
+import { getApp } from "@react-native-firebase/app";
+import { getFirestore, doc, deleteDoc } from "@react-native-firebase/firestore";
 
 export default function HomeScreen() {
+  const app = getApp();
+  const auth = getAuth(app);
+  const user = auth.currentUser;
   const realm = useRealm();
   const scheme = useColorScheme();
   const clients = useQuery<ClientsDetails>("Clients_details");
@@ -25,24 +31,24 @@ export default function HomeScreen() {
   const theme =
     scheme === "dark"
       ? {
-          bg: "#000",
-          card: "#1C1C1E",
-          text: "#FFF",
-          green: "#30D158",
-          red: "#FF453A",
-        }
+        bg: "#000",
+        card: "#1C1C1E",
+        text: "#FFF",
+        green: "#30D158",
+        red: "#FF453A",
+      }
       : {
-          bg: "#FFF",
-          card: "#F5F5F5",
-          text: "#000",
-          green: "#2E7D32",
-          red: "#C62828",
-        };
+        bg: "#FFF",
+        card: "#F5F5F5",
+        text: "#000",
+        green: "#2E7D32",
+        red: "#C62828",
+      };
 
   /* ================= RESTORE LOGIC ================= */
   useEffect(() => {
     const checkAndRestore = async () => {
-      const user = auth().currentUser;
+
 
       if (user && clients.length === 0 && !isInitialSync) {
         Alert.alert(

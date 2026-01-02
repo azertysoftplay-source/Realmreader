@@ -91,7 +91,7 @@ export default function HomeDetails() {
         renderItem={({ item }) => (
           <View style={styles.operationRow}>
             <Text style={{ color: theme.text }} numberOfLines={1}>
-              {item.desc || "-"}
+              {item.operation_id || "-"}
             </Text>
             <Text
               style={{
@@ -99,7 +99,7 @@ export default function HomeDetails() {
                 fontWeight: "600",
               }}
             >
-              {item.value}
+              {item._id}
             </Text>
           </View>
         )}

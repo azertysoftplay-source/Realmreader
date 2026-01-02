@@ -234,6 +234,16 @@
     "text_view_profile": "View Profile",
     "text_Hello": "Hello"
   },
+   "settings": {
+    "defaultCurrency": "Default currency",
+    "currencyHint": "Used for dashboard totals and reports"
+  },
+  "rates": {
+  "title": "Exchange Rates",
+  "description": "Set currency conversion rates",
+      "base": "Base currency:"
+
+},
   "getting_start": {
     "skip":"Skip",
     "Next":"Next",

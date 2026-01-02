@@ -3,12 +3,14 @@ import SettingsScreen from '../screens/SettingsScreen';
 import SettingsAdvanced from '../screens/SettingsAdvanced';
 import BackupRealmScreen from '../screens/BackupRealmScreen';
 import RestoreRealmScreen from '../screens/RestoreRealmScreen';
+import ExchangeRateScreen from '../screens/ExchangeRateScreen';
 
 export type SettingsStackParamList = {
   SettingsMain: undefined;
   SettingsAdvanced: undefined;
   BackupRealm: undefined;
   RestoreRealm: undefined;
+  ExchangeRates:undefined;
 };
 
 const Stack = createNativeStackNavigator<SettingsStackParamList>();
@@ -18,6 +20,10 @@ export default function SettingsStack() {
     <Stack.Navigator id="SettingsStack">
       <Stack.Screen name="SettingsMain" component={SettingsScreen} />
       <Stack.Screen name="SettingsAdvanced" component={SettingsAdvanced} />
+      <Stack.Screen
+        name="ExchangeRates"
+        component={ExchangeRateScreen}
+      />
       <Stack.Screen name="BackupRealm" component={BackupRealmScreen} />
 <Stack.Screen name="RestoreRealm" component={RestoreRealmScreen} />
     </Stack.Navigator>

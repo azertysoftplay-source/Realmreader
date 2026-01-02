@@ -1,16 +1,20 @@
 import "react-native-gesture-handler"; // 🔥 MUST BE FIRST
 import "./src/i18n";
-import RNBootSplash from 'react-native-bootsplash';
+
+import RNBootSplash from "react-native-bootsplash";
 import React, { useState, useEffect } from "react";
-import { StyleSheet, I18nManager, ActivityIndicator, View } from "react-native";
+import { I18nManager, ActivityIndicator, View } from "react-native";
 import { NavigationContainer, DarkTheme, DefaultTheme } from "@react-navigation/native";
 import { RealmProvider } from "@realm/react";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+
 import { ThemeProvider, useTheme } from "./src/theme";
 import { AuthProvider } from "./src/auth/AuthContext";
 import RootNavigator from "./src/navigation/RootNavigator";
 import { Clients_details, balance, operation, currency } from "./src/models/Clients_details";
-import auth from "@react-native-firebase/auth"; // Changed to modular import
-import { GestureHandlerRootView } from "react-native-gesture-handler";
+
+// ✅ MODULAR AUTH
+import { getAuth, onAuthStateChanged } from "@react-native-firebase/auth";
 
 // RTL configuration
 I18nManager.allowRTL(true);
@@ -26,38 +30,38 @@ function AppNavigation() {
   );
 }
 
-// --- NEW COMPONENT TO HANDLE DYNAMIC REALM ---
+// --- DYNAMIC REALM HANDLER ---
 function RealmWrapper({ children }: { children: React.ReactNode }) {
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-      RNBootSplash.hide({ fade: true });
+    RNBootSplash.hide({ fade: true });
 
-    // Listen for Firebase Auth changes
-    const unsubscribe = auth().onAuthStateChanged((user) => {
+    const auth = getAuth();
+
+    // ✅ MODULAR LISTENER
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUserId(user ? user.uid : "guest");
       setLoading(false);
     });
+
     return unsubscribe;
   }, []);
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" color="#007AFF" />
       </View>
     );
   }
 
   return (
-    /* The 'key' prop is the secret: 
-      When userId changes, React destroys the old Realm and opens a new file.
-    */
     <RealmProvider
-      key={userId} 
+      key={userId} // 🔥 forces Realm reload per user
       schema={[Clients_details, balance, operation, currency]}
-      schemaVersion={2}
+      schemaVersion={3}
       path={userId ? `user_${userId}.realm` : "default.realm"}
     >
       {children}

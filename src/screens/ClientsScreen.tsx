@@ -22,6 +22,10 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Realm } from "realm";
 import i18n from "../i18n";
 import { useTranslation } from "react-i18next";
+import { getAuth } from "@react-native-firebase/auth";
+import { getApp } from "@react-native-firebase/app";
+import { getFirestore, doc, deleteDoc } from "@react-native-firebase/firestore";
+
 
 /* ================= TYPES ================= */
 
@@ -138,21 +142,42 @@ export default function ClientsScreen() {
 
   /* ================= DELETE ================= */
 
-  const handleDelete = (client: Client) => {
-    Alert.alert(
-      "Delete client",
-      `Delete ${client.Clients_name}?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () =>
-            realm.write(() => realm.delete(client)),
+ const handleDelete = (client: Client) => {
+  Alert.alert(
+    "Delete client",
+    `Delete ${client.Clients_name}?`,
+    [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const app = getApp();
+            const auth = getAuth(app);
+            const user = auth.currentUser;
+            if (!user) return;
+
+            const db = getFirestore(app);
+
+            /* 🔥 FIRESTORE DELETE */
+            await deleteDoc(
+              doc(db, "users", user.uid, "clients", client._id.toString())
+            );
+
+            /* 💾 REALM DELETE */
+            realm.write(() => {
+              realm.delete(client);
+            });
+
+          } catch (e: any) {
+            Alert.alert("Delete failed", e.message);
+          }
         },
-      ]
-    );
-  };
+      },
+    ]
+  );
+};
 
   const renderRightActions = (item: Client) => (
     <TouchableOpacity
