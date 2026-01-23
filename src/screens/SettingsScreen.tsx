@@ -2,239 +2,300 @@ import React, { useEffect, useLayoutEffect, useState } from "react";
 import {
   View,
   Text,
-  Button,
-  TouchableOpacity,
   ScrollView,
   StyleSheet,
+  Pressable,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { SettingsStackParamList } from "../stacks/SettingsStack";
-import i18n from "../i18n";
+import { Picker } from "@react-native-picker/picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useTheme } from "../theme";
-import auth from "@react-native-firebase/auth";
+import { getAuth,signOut } from "@react-native-firebase/auth";
+import { getApp } from "@react-native-firebase/app";
 import { useRealm, useQuery } from "@realm/react";
+import i18n from "../i18n";
 import migrateClientsToFirestore from "../helpers/realmFirestoreSync";
 import migrateFirestoreToRealm from "../helpers/firestoreToRealmSync";
-import { Picker } from "@react-native-picker/picker";
-import { currency as cur} from "../models/Clients_details";
+import { Currency } from "../realm/types";
+import ChangePasswordSection from "../components/changePassword";
+import { useTheme } from "../theme";
+
+/* ================= CONSTANTS ================= */
+const LAST_SYNC_KEY = "lastSyncDate";
+const DEFAULT_CURRENCY_KEY = "defaultCurrency";
 
 type Props = NativeStackScreenProps<SettingsStackParamList, "SettingsMain">;
 
 export default function SettingsScreen({ navigation }: Props) {
   const realm = useRealm();
-  const currencies = useQuery<currency>("currency"); // typed query
-
   const { theme, isDark } = useTheme();
+  const currencies = useQuery<Currency>("currency").filtered(
+    "deleted == false OR deleted == null"
+  );
 
-  const [loading, setLoading] = useState(false);
-  const [isMigrating, setIsMigrating] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const auth = getAuth(getApp());
+  const user = auth.currentUser;
+  const isAppleUser = user?.providerData.some((p) => p.providerId === "apple.com");
+
   const [lang, setLang] = useState(i18n.language);
   const [defaultCurrency, setDefaultCurrency] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [lastSync, setLastSync] = useState<Date | null>(null);
 
-  /* ---------------- HEADER ---------------- */
+  /* ---------- HEADER ---------- */
   useLayoutEffect(() => {
     navigation.setOptions({
       title: i18n.t("tabbar.text_account"),
-      headerStyle: { backgroundColor: theme.card },
+      headerStyle: { backgroundColor: theme.background },
       headerTintColor: theme.text,
     });
-  }, [navigation, theme, i18n.language]);
+  }, [navigation, theme]);
 
-  /* ---------------- LOAD DEFAULT CURRENCY ---------------- */
+  /* ---------- INITIAL LOAD ---------- */
   useEffect(() => {
-    const loadCurrency = async () => {
-      const stored = await AsyncStorage.getItem("defaultCurrency");
-      if (stored) {
-        setDefaultCurrency(stored);
+    const loadSettings = async () => {
+      const [storedCurrency, storedSync] = await Promise.all([
+        AsyncStorage.getItem(DEFAULT_CURRENCY_KEY),
+        AsyncStorage.getItem(LAST_SYNC_KEY),
+      ]);
+
+      if (storedCurrency) {
+        setDefaultCurrency(storedCurrency);
       } else if (currencies.length > 0) {
-        setDefaultCurrency(currencies[0]._id);
-        await AsyncStorage.setItem("defaultCurrency", currencies[0]._id);
+        const firstId = currencies[0]._id;
+        setDefaultCurrency(firstId);
+        await AsyncStorage.setItem(DEFAULT_CURRENCY_KEY, firstId);
       }
+
+      if (storedSync) setLastSync(new Date(storedSync));
     };
-    loadCurrency();
+    loadSettings();
   }, [currencies.length]);
 
-  /* ---------------- CHANGE LANGUAGE ---------------- */
-  const changeLang = async (value: string) => {
-    await AsyncStorage.setItem("appLang", value);
-    i18n.changeLanguage(value);
-    setLang(value);
+  /* ---------- ACTIONS ---------- */
+  const saveLastSync = async () => {
+    const now = new Date();
+    setLastSync(now);
+    await AsyncStorage.setItem(LAST_SYNC_KEY, now.toISOString());
   };
 
-  /* ---------------- CHANGE CURRENCY ---------------- */
-  const changeCurrency = async (value: string) => {
-    setDefaultCurrency(value);
-    await AsyncStorage.setItem("defaultCurrency", value);
+  const changeLang = async (l: string) => {
+    await AsyncStorage.setItem("appLang", l);
+    i18n.changeLanguage(l);
+    setLang(l);
   };
 
-  /* ---------------- CLOUD SYNC ---------------- */
-  const handleRestore = async () => {
-    const user = auth().currentUser;
-    if (!user) return;
+  const changeCurrency = async (v: string) => {
+    setDefaultCurrency(v);
+    await AsyncStorage.setItem(DEFAULT_CURRENCY_KEY, v);
+  };
 
-    setLoading(true);
+  const backup = async () => {
+    if (!user || syncing) return;
+    setSyncing(true);
     try {
-      await migrateFirestoreToRealm(realm, user);
+      await migrateClientsToFirestore(realm, user, () => {});
+      await saveLastSync();
+      Alert.alert(i18n.t("cloud.success"), i18n.t("cloud.backup_complete"));
+    } catch (e) {
+      Alert.alert(i18n.t("common.error"), e.message);
     } finally {
-      setLoading(false);
+      setSyncing(false);
     }
   };
 
-  const handleSync = async () => {
-    const user = auth().currentUser;
-    if (!user) return;
-
-    setIsMigrating(true);
-    setProgress(0);
-
-    try {
-      await migrateClientsToFirestore(realm, user, setProgress);
-    } finally {
-      setIsMigrating(false);
-      setProgress(0);
-    }
+  const restore = async () => {
+    if (!user || syncing) return;
+    Alert.alert(
+      i18n.t("cloud.restore_confirm_title"),
+      i18n.t("cloud.restore_confirm_msg"),
+      [
+        { text: i18n.t("common.text_cancel"), style: "cancel" },
+        {
+          text: i18n.t("cloud.restore"),
+          onPress: async () => {
+            setSyncing(true);
+            try {
+              await migrateFirestoreToRealm(realm, user);
+              await saveLastSync();
+              Alert.alert(i18n.t("cloud.success"), i18n.t("cloud.restore_complete"));
+            } catch (e) {
+              console.log(e.message)
+              Alert.alert(i18n.t("common.error"), e.message);
+            } finally {
+              setSyncing(false);
+            }
+          },
+        },
+      ]
+    );
   };
+
+  /* ---------- SHARED UI COMPONENTS ---------- */
+  const SectionHeader = ({ title }: { title: string }) => (
+    <Text style={[styles.sectionHeader, { color: isDark ? "#8E8E93" : "#6D6D72" }]}>
+      {title}
+    </Text>
+  );
+
+  const GroupCard = ({ children }: { children: React.ReactNode }) => (
+    <View style={[styles.group, { backgroundColor: isDark ? "#1C1C1E" : "#FFF" }]}>
+      {children}
+    </View>
+  );
+
+  const Row = ({ title, onPress, right, danger }: any) => (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.row,
+        { borderBottomColor: isDark ? "#38383A" : "#C6C6C8" },
+        pressed && { backgroundColor: isDark ? "#2C2C2E" : "#E5E5EA" },
+      ]}
+    >
+      <Text style={[styles.rowText, { color: danger ? "#FF453A" : theme.text }]}>
+        {title}
+      </Text>
+      {right}
+    </Pressable>
+  );
+
+  const Chevron = () => <Text style={{ fontSize: 18, color: "#C7C7CC" }}>›</Text>;
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: isDark ? "#121212" : "#f5f5f5" }]}
-    >
-      <Text style={[styles.header, { color: theme.text }]}>
-        {i18n.t("account.text_setting")}
-      </Text>
+    <ScrollView style={[styles.container, { backgroundColor: isDark ? "#000" : "#F2F2F7" }]}>
+      {/* ---------- ACCOUNT ---------- */}
+      <SectionHeader title={i18n.t("account.text_setting")} />
+      <GroupCard>
+        {!isAppleUser && <ChangePasswordSection />}
+        <Row
+          title={i18n.t("account.text_title_logout")}
+          danger
+          onPress={() => {
+    Alert.alert(
+      i18n.t("account.text_title_logout"), // "Log Out"
+      i18n.t("account.text_description_logout"),   // "Are you sure you want to log out?"
+      [
+        {
+          text: i18n.t("common.text_cancel"),
+          style: "cancel",
+        },
+        {
+          text: i18n.t("account.text_title_logout"),
+          style: "destructive", // Red text on iOS
+          onPress: () => auth.signOut(),
+        },
+      ]
+    );
+  }}
 
-      {/* ---------- CLOUD CARD ---------- */}
-      <View style={[styles.card, { backgroundColor: theme.card }]}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>
-          {i18n.t("cloud.title")}
-        </Text>
+        />
+      </GroupCard>
 
-        <Button
+      {/* ---------- CLOUD ---------- */}
+      <SectionHeader title={i18n.t("cloud.title")} />
+      <GroupCard>
+        <Row
           title={i18n.t("cloud.backup")}
-          onPress={handleSync}
-          disabled={isMigrating || loading}
+          onPress={backup}
+          right={syncing ? <ActivityIndicator size="small" color={theme.primary} /> : <Chevron />}
         />
-        <Button
+        <Row
           title={i18n.t("cloud.restore")}
-          onPress={handleRestore}
-          disabled={isMigrating || loading}
-          color="#34C759"
+          onPress={restore}
+          right={syncing ? <ActivityIndicator size="small" color={theme.primary} /> : <Chevron />}
         />
+      </GroupCard>
 
-        {isMigrating && (
-          <Text style={{ marginTop: 10 }}>
-            {i18n.t("cloud.syncingProgress", { progress })}
-          </Text>
-        )}
-      </View>
+      {lastSync && (
+        <Text style={styles.lastSyncText}>
+          {i18n.t("cloud.lastSync")}: {lastSync.toLocaleString()}
+        </Text>
+      )}
 
       {/* ---------- LANGUAGE ---------- */}
-      <View style={[styles.card, { backgroundColor: theme.card }]}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>
-          {i18n.t("account.text_language")}
-        </Text>
+      <SectionHeader title={i18n.t("account.text_language")} />
+      <GroupCard>
+        <Row
+          title="English"
+          onPress={() => changeLang("en")}
+          right={lang === "en" ? <Text style={{ color: theme.primary }}>✓</Text> : null}
+        />
+        <Row
+          title="العربية"
+          onPress={() => changeLang("ar")}
+          right={lang === "ar" ? <Text style={{ color: theme.primary }}>✓</Text> : null}
+        />
+      </GroupCard>
 
-        <View style={{ flexDirection: "row", gap: 10 }}>
-          <TouchableOpacity
-            style={[
-              styles.langBtn,
-              { backgroundColor: lang === "en" ? "#007AFF" : "#ccc" },
-            ]}
-            onPress={() => changeLang("en")}
-          >
-            <Text style={styles.langText}>English</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.langBtn,
-              { backgroundColor: lang === "ar" ? "#007AFF" : "#ccc" },
-            ]}
-            onPress={() => changeLang("ar")}
-          >
-            <Text style={styles.langText}>العربية</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* ---------- EXCHANGE RATES LINK ---------- */}
+      {/* ---------- EXCHANGE RATES ---------- */}
       <TouchableOpacity
         onPress={() => navigation.navigate("ExchangeRates")}
-        style={[
-          styles.card,
-          {
-            backgroundColor: isDark ? "#1e1e1e" : "#fff",
-            marginTop: 20,
-          },
-        ]}
+        style={[styles.rateCard, { backgroundColor: isDark ? "#1C1C1E" : "#FFF" }]}
       >
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>
+        <Text style={[styles.rowText, { color: theme.text, fontWeight: "600" }]}>
           {i18n.t("rates.title")}
         </Text>
-        <Text style={{ color: "#888", marginTop: 6 }}>
-          {i18n.t("rates.description")}
-        </Text>
+        <Text style={{ color: "#8E8E93", marginTop: 4 }}>{i18n.t("rates.description")}</Text>
       </TouchableOpacity>
 
       {/* ---------- DEFAULT CURRENCY ---------- */}
-      <View style={[styles.card, { backgroundColor: theme.card }]}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>
-          {i18n.t("settings.defaultCurrency")}
-        </Text>
-
-        <View style={styles.pickerWrapper}>
-          <Picker
-            selectedValue={defaultCurrency}
-            onValueChange={changeCurrency}
-            dropdownIconColor={theme.text}
-          >
-            {currencies.map((c) => (
-              <Picker.Item key={c._id} label={c.name} value={c._id} color={theme.text} />
-            ))}
-          </Picker>
-        </View>
-      </View>
-
-      {/* ---------- LOGOUT ---------- */}
-      <View style={{ marginBottom: 40 }}>
-        <Button
-          title={i18n.t("account.text_title_logout")}
-          color="#FF3B30"
-          onPress={() => auth().signOut()}
-        />
-      </View>
+      <SectionHeader title={i18n.t("settings.defaultCurrency")} />
+      <GroupCard>
+        <Picker
+          selectedValue={defaultCurrency}
+          onValueChange={changeCurrency}
+          dropdownIconColor={isDark ? "#FFF" : "#000"}
+          style={{ color: theme.text }}
+        >
+          {currencies.map((c) => (
+            <Picker.Item key={c._id} label={c.name} value={c._id} color={isDark ? "#FFF" : "#000"} />
+          ))}
+        </Picker>
+      </GroupCard>
+      
+      <View style={{ height: 40 }} />
     </ScrollView>
   );
 }
 
-/* ---------------- STYLES ---------------- */
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20 },
-  header: { fontSize: 24, fontWeight: "bold", marginBottom: 20 },
-  sectionTitle: { fontSize: 18, fontWeight: "600", marginBottom: 10 },
-  card: {
-    padding: 20,
-    borderRadius: 14,
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+  container: { flex: 1 },
+  sectionHeader: {
+    marginTop: 24,
+    marginBottom: 8,
+    marginLeft: 16,
+    fontSize: 13,
+    fontWeight: "600",
+    textTransform: "uppercase",
   },
-  langBtn: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  langText: { color: "#fff", fontWeight: "600" },
-  pickerWrapper: {
-    borderWidth: 1,
+  group: {
+    marginHorizontal: 16,
     borderRadius: 10,
     overflow: "hidden",
-    borderColor: "#ccc",
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  rowText: { fontSize: 17 },
+  lastSyncText: {
+    marginTop: 8,
+    marginLeft: 16,
+    fontSize: 12,
+    color: "#8E8E93",
+  },
+  rateCard: {
+    marginHorizontal: 16,
+    marginTop: 24,
+    padding: 16,
+    borderRadius: 10,
   },
 });

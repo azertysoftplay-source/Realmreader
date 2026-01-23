@@ -10,7 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import auth from "@react-native-firebase/auth";
+import { getAuth, AppleAuthProvider, signInWithCredential, EmailAuthProvider } from "@react-native-firebase/auth";
 import appleAuth, { AppleButton } from "@invertase/react-native-apple-authentication";
 
 export default function LoginScreen() {
@@ -27,8 +27,14 @@ export default function LoginScreen() {
 
     try {
       setLoading(true);
-      await auth().signInWithEmailAndPassword(email.trim(), password);
-      console.log("Email login successful");
+      const auth = getAuth();
+
+            const credential =EmailAuthProvider.credential(
+              email.trim(),
+              password
+            );
+
+      await signInWithCredential(auth, credential);
     } catch (error: any) {
       let message = "Login failed";
       if (error.code === "auth/user-not-found") message = "User not found";
@@ -55,16 +61,17 @@ export default function LoginScreen() {
           appleAuth.Scope.FULL_NAME,
         ],
       });
+            const auth = getAuth();
+
 
       const { identityToken, nonce, user } = appleAuthResponse;
 
       if (!identityToken) throw new Error("Apple Sign-In failed: no token returned");
 
-      const appleCredential = auth.AppleAuthProvider.credential(identityToken, nonce);
+      const appleCredential = AppleAuthProvider.credential(identityToken, nonce);
 
-      await auth().signInWithCredential(appleCredential);
+      await signInWithCredential(auth,appleCredential);
 
-      console.log("Apple Sign-In successful", user);
     } catch (err: any) {
       console.error("Apple Sign-In error", err);
       Alert.alert("Apple Sign-In failed", err.message);

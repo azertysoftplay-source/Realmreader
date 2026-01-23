@@ -5,51 +5,32 @@ import {
   TextInput,
   ScrollView,
   StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery } from "@realm/react";
-import { Picker } from "@react-native-picker/picker";
 import { useTheme } from "../theme";
 import i18n from "../i18n";
+import { Currency } from "../realm/types";
 
-/* ---------- TYPES ---------- */
-type ExchangeRatesMap = Record<string, number>;
-
-/* ---------- ASYNC HELPERS ---------- */
+/* ---------- STORAGE KEYS ---------- */
 const RATES_KEY = "exchangeRates";
 const BASE_KEY = "defaultCurrency";
 
-async function loadRates(): Promise<ExchangeRatesMap> {
-  const json = await AsyncStorage.getItem(RATES_KEY);
-  return json ? JSON.parse(json) : {};
-}
-
-async function saveRate(from: string, to: string, rate: number) {
-  const rates = await loadRates();
-  rates[`${from}_${to}`] = rate;
-  await AsyncStorage.setItem(RATES_KEY, JSON.stringify(rates));
-}
-
 /* ---------- SCREEN ---------- */
 export default function ExchangeRateScreen({ navigation }: any) {
-  const currencies = useQuery("currency"); // Realm
   const { theme, isDark } = useTheme();
 
+  /** ✅ ONLY ACTIVE CURRENCIES */
+ const currencies = useQuery<Currency>("currency").filtered(
+  "deleted == false OR deleted == null"
+);
+
   const [baseCurrencyId, setBaseCurrencyId] = useState<string | null>(null);
-  const [rates, setRates] = useState<ExchangeRatesMap>({});
 
-  /* ---------- MAP CURRENCIES BY ID ---------- */
-  const currencyMap = useMemo(() => {
-    const map: Record<string, any> = {};
-    currencies.forEach((c: any) => {
-      map[c._id] = c;
-    });
-    return map;
-  }, [currencies]);
-
-  const baseCurrency = baseCurrencyId
-    ? currencyMap[baseCurrencyId]
-    : null;
+  /** 🔥 STRING STATE (THIS FIXES iOS DOT ISSUE) */
+  const [rateInputs, setRateInputs] = useState<Record<string, string>>({});
 
   /* ---------- HEADER ---------- */
   useLayoutEffect(() => {
@@ -60,116 +41,117 @@ export default function ExchangeRateScreen({ navigation }: any) {
     });
   }, [theme, i18n.language]);
 
-  /* ---------- LOAD DATA ---------- */
+  /* ---------- LOAD BASE + RATES ---------- */
   useEffect(() => {
     const load = async () => {
-      const base = await AsyncStorage.getItem(BASE_KEY);
-      const storedRates = await loadRates();
+      const storedBase = await AsyncStorage.getItem(BASE_KEY);
+      const storedRates = await AsyncStorage.getItem(RATES_KEY);
 
-      if (base) setBaseCurrencyId(base);
-      else if (currencies.length > 0)
+      if (storedBase && currencies.find(c => c._id === storedBase)) {
+        setBaseCurrencyId(storedBase);
+      } else if (currencies.length > 0) {
         setBaseCurrencyId(currencies[0]._id);
+        await AsyncStorage.setItem(BASE_KEY, currencies[0]._id);
+      }
 
-      setRates(storedRates);
+      if (storedRates) {
+        const parsed = JSON.parse(storedRates);
+        const textMap: Record<string, string> = {};
+
+        Object.entries(parsed).forEach(([k, v]: any) => {
+          textMap[k] = String(v);
+        });
+
+        setRateInputs(textMap);
+      }
     };
-    load();
+
+    if (currencies.length > 0) load();
   }, [currencies.length]);
 
-  if (!baseCurrency) return null;
+  if (!baseCurrencyId) return null;
 
-  /* ---------- UPDATE RATE ---------- */
-  const updateRate = async (toId: string, value: string) => {
-    const rate = parseFloat(value);
+  /* ---------- SAVE RATE (NUMBER) ---------- */
+  const persistRate = async (key: string, text: string) => {
+    const rate = parseFloat(text);
     if (!Number.isFinite(rate) || rate <= 0) return;
 
-    await saveRate(baseCurrencyId!, toId, rate);
-    setRates((prev) => ({
-      ...prev,
-      [`${baseCurrencyId}_${toId}`]: rate,
-    }));
+    const stored = await AsyncStorage.getItem(RATES_KEY);
+    const rates = stored ? JSON.parse(stored) : {};
+
+    rates[key] = rate;
+    await AsyncStorage.setItem(RATES_KEY, JSON.stringify(rates));
   };
 
   /* ---------- UI ---------- */
   return (
-    <ScrollView
-      style={[
-        styles.container,
-        { backgroundColor: isDark ? "#121212" : "#f5f5f5" },
-      ]}
-    >
-      {/* BASE CURRENCY */}
-      <Text style={[styles.header, { color: theme.text }]}>
-        {i18n.t("rates.base")} {baseCurrency.name}
-      </Text>
+   <KeyboardAvoidingView
+  style={{ flex: 1 }}
+  behavior={Platform.OS === "ios" ? "padding" : undefined}
+  keyboardVerticalOffset={80} // adjust if you have a header
+>
+  <ScrollView
+    keyboardShouldPersistTaps="handled"
+    contentContainerStyle={{ paddingBottom: 130 }}
+    style={[
+      styles.container,
+      { backgroundColor: isDark ? "#121212" : "#f5f5f5" },
+    ]}
+  >
+    <Text style={[styles.header, { color: theme.text }]}>
+      {i18n.t("rates.base")}
+    </Text>
 
-      {/* BASE SELECTOR */}
-      <View style={[styles.card, { backgroundColor: theme.card }]}>
-        <Picker
-          selectedValue={baseCurrencyId}
-          onValueChange={async (val) => {
-            setBaseCurrencyId(val);
-            await AsyncStorage.setItem(BASE_KEY, val);
-          }}
-        >
-          {currencies.map((c: any) => (
-            <Picker.Item
-              key={c._id}
-              label={c.name}
-              value={c._id}
-            />
-          ))}
-        </Picker>
-      </View>
+    {currencies
+      .filter(c => c._id !== baseCurrencyId)
+      .map(currency => {
+        const key = `${baseCurrencyId}_${currency._id}`;
 
-      {/* RATES */}
-      {currencies
-        .filter((c: any) => c._id !== baseCurrencyId)
-        .map((currency: any) => {
-          const key = `${baseCurrencyId}_${currency._id}`;
+        return (
+          <View
+            key={currency._id}
+            style={[styles.card, { backgroundColor: theme.card }]}
+          >
+            <Text style={{ color: theme.text, marginBottom: 6 }}>
+              1 → {currency.name}
+            </Text>
 
-          return (
-            <View
-              key={currency._id}
-              style={[styles.card, { backgroundColor: theme.card }]}
-            >
-              <Text style={{ color: theme.text, marginBottom: 6 }}>
-                1 {baseCurrency.name}
-              </Text>
+            <View style={styles.row}>
+              <TextInput
+                keyboardType="decimal-pad"
+                placeholder="0.00"
+                value={rateInputs[key] ?? ""}
+                onChangeText={(v) => {
+                  const normalized = v.replace(",", ".");
 
-              <View style={styles.row}>
-                <TextInput
-                  keyboardType="numeric"
-                  placeholder="0.00"
-                  placeholderTextColor="#999"
-                  value={rates[key]?.toString() ?? ""}
-                  onChangeText={(v) =>
-                    updateRate(currency._id, v)
+                  if (/^\d*\.?\d*$/.test(normalized)) {
+                    setRateInputs(prev => ({
+                      ...prev,
+                      [key]: normalized,
+                    }));
+
+                    persistRate(key, normalized);
                   }
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: isDark
-                        ? "#1e1e1e"
-                        : "#fff",
-                      color: theme.text,
-                    },
-                  ]}
-                />
-
-                <Text
-                  style={{
+                }}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: isDark ? "#1e1e1e" : "#fff",
                     color: theme.text,
-                    marginLeft: 10,
-                    minWidth: 80,
-                  }}
-                >
-                  {currency.name}
-                </Text>
-              </View>
+                  },
+                ]}
+              />
+
+              <Text style={{ color: theme.text, marginLeft: 10 }}>
+                {currency.name}
+              </Text>
             </View>
-          );
-        })}
-    </ScrollView>
+          </View>
+        );
+      })}
+  </ScrollView>
+</KeyboardAvoidingView>
+
   );
 }
 

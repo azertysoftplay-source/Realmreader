@@ -11,13 +11,24 @@ import {
 import { useQuery, useRealm } from "@realm/react";
 import { LightColors, useTheme } from "../theme";
 import { useTranslation } from "react-i18next";
+import { operation } from "../models/Clients_details";
+import { getAuth } from "@react-native-firebase/auth";
+import { getApp } from "@react-native-firebase/app";
 export default function CurrencyScreen() {
   const { theme } = useTheme();
   const realm = useRealm();
-  const currencies = useQuery<any>("currency");
+  const currencies = useQuery<any>("currency").filtered(
+  "deleted == false OR deleted == null"
+);
+const operations = useQuery<any>("operation").filtered(
+  "deleted == false OR deleted == null"
+);
+
   const { t, i18n } = useTranslation();
 
   const [name, setName] = useState("");
+    const auth = getAuth(getApp());
+    const user = auth.currentUser;
 
   // ✅ STORE IDS ONLY
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -42,13 +53,18 @@ export default function CurrencyScreen() {
         ? Number(currenciesSorted[0].currency_id) + 1
         : 1;
 
-    realm.write(() => {
-      realm.create("currency", {
-        _id: ID.toString(),
-        currency_id: ID,
-        name,
-      });
-    });
+   realm.write(() => {
+  realm.create("currency", {
+    _id: `${user.uid.toString()}${ID.toString()}`,
+    currency_id: ID,
+    name,
+
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    deleted: false, // soft delete flag
+  });
+});
+
 
     setName("");
   };
@@ -58,6 +74,8 @@ export default function CurrencyScreen() {
 
     realm.write(() => {
       selected.name = name;
+      selected.createdAt= new Date();
+    selected.updatedAt= new Date();
     });
 
     setSelectedId(null);
@@ -67,9 +85,10 @@ export default function CurrencyScreen() {
   const confirmDelete = () => {
     if (!toDelete) return;
 
-    realm.write(() => {
-      realm.delete(toDelete);
-    });
+   realm.write(() => {
+  toDelete.deleted = true;
+  toDelete.updatedAt = new Date();
+});
 
     setShowModal(false);
     setToDeleteId(null);
@@ -91,9 +110,8 @@ export default function CurrencyScreen() {
   };
 
   const calculateTotal = (item: any) => {
-    const sum = realm
-      .objects("operation")
-      .filtered('currency._id == $0 AND type != "check"', item._id)
+    const sum = operations
+      .filtered('currency._id == $0 AND type != "check" AND (deleted == false OR deleted == null)', item._id)
       .sum("value");
 
     return Number(sum).toFixed(2);

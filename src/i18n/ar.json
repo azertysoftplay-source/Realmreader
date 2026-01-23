@@ -90,8 +90,23 @@
   },
   "settings": {
     "defaultCurrency": "العملة الافتراضية",
-    "currencyHint": "تُستخدم في ملخص الحساب والتقارير"
+    "currencyHint": "تُستخدم في ملخص الحساب والتقارير", 
+    "changePassword": "تغيير كلمة المرور",
+    "currentPassword": "كلمة المرور الحالية",
+    "newPassword": "كلمة المرور الجديدة",
+    "passwordStrength": "قوة كلمة المرور",
+    "passwordWeak": "ضعيفة",
+    "passwordMedium": "متوسطة",
+    "passwordStrong": "قوية",
+    "passwordUpdated": "تم تغيير كلمة المرور بنجاح"
   },
+    "errors": {
+    "wrongPassword": "كلمة المرور الحالية غير صحيحة",
+    "passwordTooShort": "يجب أن تكون كلمة المرور 6 أحرف على الأقل",
+    "tooManyRequests": "عدد محاولات كبير، يرجى المحاولة لاحقًا",
+    "generic": "حدث خطأ، حاول مرة أخرى"
+  }
+,
   "rates": {
   "title": "أسعار الصرف",
   "description": "تحديد أسعار تحويل العملات",
@@ -192,12 +207,30 @@
     "text_send": "ارسل رسالة..."
   },
    "cloud": {
-    "title": "مزامنة السحابة",
+   
     "description": "احفظ بياناتك بأمان عن طريق النسخ الاحتياطي إلى حسابك السحابي الشخصي.",
-    "backup": "نسخ احتياطي إلى السحابة",
-    "restore": "استعادة من السحابة",
+   
     "syncingProgress": "جارٍ المزامنة... {{progress}}٪",
-    "restoring": "جارٍ الاستعادة..."
+    "restoring": "جارٍ الاستعادة...",
+    "sync_start": "بدأت المزامنة",
+  "sync_success": "تمت المزامنة بنجاح",
+  "sync_error": "فشلت المزامنة",
+   "backup_start": "بدأ النسخ الاحتياطي",
+  "backup_success": "تم النسخ الاحتياطي بنجاح",
+  "backup_error": "فشل النسخ الاحتياطي",
+  "restore_start": "بدأ الاسترجاع",
+  "restore_success": "تم الاسترجاع بنجاح",
+  "restore_error": "فشل الاسترجاع",  
+    "lastSync": "آخر مزامنة",
+      "title": "المزامنة السحابية",
+    "backup": "نسخ احتياطي للسحابة",
+    "restore": "استعادة من السحابة",
+    "success": "نجاح",
+    "backup_complete": "تم نسخ البيانات بنجاح.",
+    "restore_complete": "تم استعادة البيانات بنجاح.",
+    "restore_confirm_title": "استعادة البيانات؟",
+    "restore_confirm_msg": "سيؤدي هذا إلى استبدال بيا"
+
   },
   "account": {
     "text_profile": "الملف الشخصي",

@@ -10,6 +10,9 @@ import {
   useColorScheme,
   Modal,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from "react-native";
 import { Picker } from '@react-native-picker/picker';
 import { Swipeable } from "react-native-gesture-handler";
@@ -23,6 +26,7 @@ import Share from 'react-native-share';
 import Icon from "../components/Icon";
 import { operation } from "../models/Clients_details";
 import { useTranslation } from "react-i18next";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 
 /* ================= TYPES ================= */
@@ -72,9 +76,9 @@ export default function ClientsDetailsScreen() {
   /* ================= DATA ================= */
 
   const client = useObject<ClientsDetails>("Clients_details", clientId);
-  const currencies = useQuery<Currency>("currency");
+  const currencies = useQuery<Currency>("currency").filtered("deleted != true");
   const allOperations = useQuery<Operation>("operation")
-    .filtered("client_id == $0", clientId)
+    .filtered("client_id == $0 AND (deleted != true)", clientId)
     .sorted("time", true);
 
   const [currencyFilter, setCurrencyFilter] = useState<string | null>(null);
@@ -85,9 +89,9 @@ export default function ClientsDetailsScreen() {
   const [editDesc, setEditDesc] = useState("");
   const [editCurrency, setEditCurrency] = useState<any>(null);
   const [addOpVisible, setAddOpVisible] = useState(false);
-const [newValue, setNewValue] = useState("");
-const [newDesc, setNewDesc] = useState("");
-const [newCurrency, setNewCurrency] = useState(currencies[0]);
+  const [newValue, setNewValue] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+  const [newCurrency, setNewCurrency] = useState(currencies[0]);
 
   const openEditOperation = (op) => {
     setEditOp(op);
@@ -103,6 +107,7 @@ const [newCurrency, setNewCurrency] = useState(currencies[0]);
       editOp.value = Number(editValue);
       editOp.desc = editDesc;
       editOp.currency = editCurrency;
+      editOp.updatedAt = new Date();
     });
 
     setEditOp(null);
@@ -116,8 +121,10 @@ const [newCurrency, setNewCurrency] = useState(currencies[0]);
       headerStyle: { backgroundColor: theme.card },
       headerTintColor: theme.text,
       headerRight: () => (
-        <View style={{  flexDirection: "row" , justifyContent: "space-between",
-    width: 120}}>
+        <View style={{
+          flexDirection: "row", justifyContent: "space-between",
+          width: 120
+        }}>
           <Icon
             name="link"
             type="MaterialIcons"
@@ -126,15 +133,15 @@ const [newCurrency, setNewCurrency] = useState(currencies[0]);
           />
           <Icon
             name="share"
-            onPress={ createPDF}
+            onPress={createPDF}
             color={theme.primary}
           />
-           <Icon
-    name="add"
-    type="MaterialIcons"
-    onPress={() => setAddOpVisible(true)}
-    color={theme.primary}
-  />
+          <Icon
+            name="add"
+            type="MaterialIcons"
+            onPress={() => setAddOpVisible(true)}
+            color={theme.primary}
+          />
         </View>
       ),
     });
@@ -173,7 +180,7 @@ const [newCurrency, setNewCurrency] = useState(currencies[0]);
     const sum = realm
       .objects("operation")
       .filtered(
-        "client_id == $0 AND currency._id == $1 AND type != 'check'",
+        "client_id == $0 AND currency._id == $1 AND type != 'check' AND (deleted == false OR deleted == null)",
         clientId,
         currency._id
       )
@@ -183,89 +190,97 @@ const [newCurrency, setNewCurrency] = useState(currencies[0]);
 
   /* ================= ACTIONS ================= */
   const addOperation = () => {
-    
-    console.log('Adding operation with:', { newValue, newCurrency, newDesc });
-  if (!newValue || !newCurrency) return;
-   const amount = Number(newValue);
 
-  // ❌ Not a number OR empty
-  if (!Number.isFinite(amount)) {
-    Alert.alert("Invalid amount", "Please enter a valid number");
-    return;
-  }
+    if (!newValue || !newCurrency) return;
+    const amount = Number(newValue);
 
-  if (!newCurrency) {
-    Alert.alert("Missing currency", "Please select a currency");
-    return;
-  }
+    // ❌ Not a number OR empty
+    if (!Number.isFinite(amount)) {
+      Alert.alert("Invalid amount", "Please enter a valid number");
+      return;
+    }
 
-  realm.write(() => {
-    realm.create("operation", {
-      _id: `${Date.now()}`,
-      client_id: clientId,
-      operation_id: Date.now(),
-      type: "normal",
-      value: Number(newValue),
-      time: new Date(),
-      currency: newCurrency,
-      desc: newDesc,
+    if (!newCurrency) {
+      Alert.alert("Missing currency", "Please select a currency");
+      return;
+    }
+
+    realm.write(() => {
+      realm.create("operation", {
+        _id: `${Date.now()}`,
+        client_id: clientId,
+        operation_id: Date.now(),
+        type: "normal",
+        value: Number(newValue),
+        time: new Date(),
+        currency: newCurrency,
+        desc: newDesc,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deleted: false,
+      });
     });
-  });
 
-  setAddOpVisible(false);
-  setNewValue("");
-  setNewDesc("");
-};
+    setAddOpVisible(false);
+    setNewValue("");
+    setNewDesc("");
+  };
 
-const creatCheck = () => {
-  let desc = "";
-  currencies.forEach((item) => {
-    const sum = realm
-      .objects("operation")
-      .filtered(
-        'client_id == $0 AND currency._id == $1 AND type != "check"',
-        clientId,
-        item._id
-      )
-      .sum("value") as number;
-    const value = Number(sum).toFixed(2);
-    const exist =
-      realm
+  const creatCheck = () => {
+    let desc = "";
+    currencies.forEach((item) => {
+      const sum = realm
         .objects("operation")
         .filtered(
-          'client_id == $0 AND currency._id == $1 AND type != "check"',
+          'client_id == $0 AND currency._id == $1 AND type != "check" AND (deleted == false OR deleted == null)',
           clientId,
           item._id
-        ).length > 0;
-    if (exist) desc += `${value} ${item.name} |`;
-  });
-
-  realm.write(() => {
-    realm.create("operation", {
-      _id: `${Date.now()}`,
-      client_id: clientId,
-      operation_id: Date.now(),
-      type: "check",
-      value: 0,
-      time: new Date(),
-      currency: currencies[0],
-      desc: desc || "Checkpoint",
+        )
+        .sum("value") as number;
+      const value = Number(sum).toFixed(2);
+      const exist =
+        realm
+          .objects("operation")
+          .filtered(
+            'client_id == $0 AND currency._id == $1 AND type != "check" AND (deleted == false OR deleted == null)',
+            clientId,
+            item._id
+          ).length > 0;
+      if (exist) desc += `${value} ${item.name} |`;
     });
-  });
-};
+
+    realm.write(() => {
+      realm.create("operation", {
+        _id: `${Date.now()}`,
+        client_id: clientId,
+        operation_id: Date.now(),
+        type: "check",
+        value: 0,
+        time: new Date(),
+        currency: currencies[0],
+        desc: desc || "Checkpoint",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        deleted: false,
+      });
+    });
+  };
   const deleteOperation = (op) => {
     Alert.alert("Delete", "Delete this operation?", [
-      { text:i18n.t('common.text_cancel'), style: "cancel" },
+      { text: i18n.t('common.text_cancel'), style: "cancel" },
       {
         text: "Delete",
         style: "destructive",
         onPress: () =>
-          realm.write(() => realm.delete(op)),
+          realm.write(() => {
+            op.deleted = true;
+            op.updatedAt = new Date();
+          }),
       },
     ]);
   };
 
- 
+
 
   /* ================= RENDER ================= */
 
@@ -273,12 +288,12 @@ const creatCheck = () => {
     if (item.type === "check") {
       return (
         <View style={[
-    styles.checkItem,
-    {
-      backgroundColor:
-        scheme === "dark" ? "#5C4B00" : "#FFD54F",
-    },
-  ]}>
+          styles.checkItem,
+          {
+            backgroundColor:
+              scheme === "dark" ? "#5C4B00" : "#FFD54F",
+          },
+        ]}>
           <Text style={{ color: scheme === "dark" ? "#FFF" : "#000" }}>{item.desc}</Text>
         </View>
       );
@@ -298,9 +313,10 @@ const creatCheck = () => {
         <TouchableOpacity
           style={[
             styles.operation,
-            { backgroundColor: theme.card,
-      borderColor: theme.border,
- },
+            {
+              backgroundColor: theme.card,
+              borderColor: theme.border,
+            },
           ]}
           onPress={() => openEditOperation(item)}
         >
@@ -314,10 +330,10 @@ const creatCheck = () => {
             {item.value}
           </Text>
 
-          <Text style={{ width: 80 ,color: scheme === "dark" ? "#FFF" : "#000"}}>{item.currency.name}</Text>
+          <Text style={{ width: 80, color: scheme === "dark" ? "#FFF" : "#000" }}>{item.currency.name}</Text>
 
- <Text style={{ color: scheme === "dark" ? "#FFF" : "#000",flex:1 }}>{item.desc}</Text>
-          <Text style={{ width: 60 ,color: scheme === "dark" ? "#FFF" : "#000"}}>
+          <Text style={{ color: scheme === "dark" ? "#FFF" : "#000", flex: 1 }}>{item.desc}</Text>
+          <Text style={{ width: 60, color: scheme === "dark" ? "#FFF" : "#000" }}>
             {moment(item.time).format("HH:mm")}
           </Text>
         </TouchableOpacity>
@@ -406,48 +422,46 @@ pageFooter.first.page
     page-break-before: avoid;
 }
 `;
-const balancescode=()=>{
-    var balance=''
-    currencies.map((item)=>{
-    const somme=getBalance(item)
-      if(somme>=0){
-        balance=balance+` <th style="background-color:green;width: 50%;color:white"><span>${somme}  ${item.name}</span></th>`
-      }else
-      if(somme<0)
+  const balancescode = () => {
+    var balance = ''
+    currencies.map((item) => {
+      const somme = getBalance(item)
+      if (somme >= 0) {
+        balance = balance + ` <th style="background-color:green;width: 50%;color:white"><span>${somme}  ${item.name}</span></th>`
+      } else
+        if (somme < 0)
 
-      balance=balance+` <th style="background-color:red;width: 50%;color:white"><span>${somme}  ${item.name}</span></th>`
+          balance = balance + ` <th style="background-color:red;width: 50%;color:white"><span>${somme}  ${item.name}</span></th>`
     })
-return balance
-  } 
-   const HTMLCODE=()=>{
-    const opr=realm.objects('operation').filtered('client_id =$0 AND  type=="check"', clientId).sorted('time',true)
-    if(opr.length>0){
-      var list=realm.objects('operation').filtered('client_id =$0 AND  time>$1', clientId,opr[0].time)
-    }
-    else{
-      var list=realm.objects('operation').filtered('client_id =$0', clientId).sorted('time',true)
-    }
-    var code=''
-    list.map((item)=>{
-      if(item.type=="check")
-      code=  code + `<tr>
-      <td  colspan="3" style="text-align: center;background-color:yellow;width:100%"><span>`+ item.desc+`<span></td>
+    return balance
+  }
+  const HTMLCODE = () => {
+    const checks = allOperations.filtered('type == "check"');
+    const list =
+      checks.length > 0
+        ? allOperations.filtered("time > $0", checks[0].time)
+        : allOperations;
+    var code = ''
+    list.map((item) => {
+      if (item.type == "check")
+        code = code + `<tr>
+      <td  colspan="3" style="text-align: center;background-color:yellow;width:100%"><span>`+ item.desc + `<span></td>
      
   
     </tr>`
-    else
-    code=  code + `<tr>
-      <td style="text-align: center;"><span>`+ item.value +`<span></td>
-      <td style="text-align: center;"><span>`+item.currency?.name+`<span></td>
-      <td style="text-align: center;"><span>`+item.desc+`<span></td>
-      <td style="text-align: center;"><span>`+ moment(item.time).format('DD/MM/yy') +`<span></td>
+      else
+        code = code + `<tr>
+      <td style="text-align: center;"><span>`+ item.value + `<span></td>
+      <td style="text-align: center;"><span>`+ item.currency?.name + `<span></td>
+      <td style="text-align: center;"><span>`+ item.desc + `<span></td>
+      <td style="text-align: center;"><span>`+ moment(item.time).format('DD/MM/yy') + `<span></td>
     </tr>`
 
     })
-    
+
     return code
   }
-const  createPDF=async( ) =>{
+  const createPDF = async () => {
     const htmlContent = `
     <html>
       <head>
@@ -494,7 +508,7 @@ const  createPDF=async( ) =>{
           </table>
           <table>
           <thead>
-          <tr>`+balancescode()+`
+          <tr>`+ balancescode() + `
           
           </tr>
         </thead>
@@ -509,7 +523,7 @@ const  createPDF=async( ) =>{
                 <th><span>Date</span></th>
               </tr>
             </thead>
-            <tbody>`+HTMLCODE()+`
+            <tbody>`+ HTMLCODE() + `
              
             </tbody>
            
@@ -522,27 +536,32 @@ const  createPDF=async( ) =>{
      
     </html>
   `;
-  
+
     let options = {
-      html:  htmlContent,
-      fileName: client.Clients_name+' '+client.Clients_contact+"_Daftarrr",
+      html: htmlContent,
+      fileName: client.Clients_name + ' ' + client.Clients_contact + "_Daftarrr",
       directory: 'Documents',
-      base64:true
+      base64: true
     };
 
     let file = await generatePDF(options)
-  
-     Share.open({
-      title: "This is my report ",
-      url:"file://"+file.filePath+"",
-      subject: "Report",
- }); 
+    try {
+      await Share.open({
+        title: "This is my report ",
+        url: "file://" + file.filePath + "",
+        subject: "Report",
+      });
+    } catch (error: any) {
+      // ✅ This is NOT a real error, user just cancelled
+      if (error?.message === "User did not share") {
+        return;
+      }
 
-   
-  
+      console.error("Share error:", error);
 
+    }
   }
-  
+
 
   /* ================= UI ================= */
 
@@ -553,7 +572,7 @@ const  createPDF=async( ) =>{
         horizontal
         data={currencies}
         keyExtractor={(i) => i._id}
-        contentContainerStyle={{ padding: 10,height: 60 }}
+        contentContainerStyle={{ padding: 10, height: 60 }}
         renderItem={({ item }) => {
           const value = getBalance(item);
           return (
@@ -564,7 +583,7 @@ const  createPDF=async( ) =>{
                 )
               }
               style={{
-                backgroundColor: value >= 0? theme.green : theme.red,
+                backgroundColor: value >= 0 ? theme.green : theme.red,
                 padding: 10,
                 marginRight: 10,
                 borderRadius: 10,
@@ -579,200 +598,271 @@ const  createPDF=async( ) =>{
       />
 
       {/* OPERATIONS */}
-     <SectionList
-  sections={sections}
-  keyExtractor={(item) => item._id}
-  renderSectionHeader={({ section }) => (
-    <View
-      style={[
-        styles.sectionHeader,
-        {
-          backgroundColor: theme.section,
-          borderBottomColor: theme.border,
-        },
-      ]}
-    >
-      <Text style={[styles.sectionText, { color: theme.text }]}>
-        {section.title}
-      </Text>
-    </View>
-  )}
-  renderItem={renderOperation}
-/>
+      <SectionList
+        sections={sections}
+        keyExtractor={(item) => item._id}
+        renderSectionHeader={({ section }) => (
+          <View
+            style={[
+              styles.sectionHeader,
+              {
+                backgroundColor: theme.section,
+                borderBottomColor: theme.border,
+              },
+            ]}
+          >
+            <Text style={[styles.sectionText, { color: theme.text }]}>
+              {section.title}
+            </Text>
+          </View>
+        )}
+        renderItem={renderOperation}
+      />
 
 
       {/* ================= EDIT OPERATION MODAL ================= */}
-      <Modal visible={!!editOp} transparent animationType="slide">
-        <View style={modal.overlay}>
-          <View style={[modal.card, { backgroundColor: theme.card }]}>
-            <Text style={[modal.title, { color: theme.text }]}>
-              {i18n.t('operation.text_add_operation3')}
-            </Text>
+      <Modal
+  visible={!!editOp}
+  transparent
+  animationType="slide"
+  
+>
+  <SafeAreaView style={{ flex: 1 }}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      style={{ flex: 1 }}
+    >
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{
+          flexGrow: 1,
+          justifyContent: "center",
+          backgroundColor: "rgba(0,0,0,0.6)",
+          padding: 20,
+        }}
+      >
+        <View style={[modal.card, { backgroundColor: theme.card }]}>
+          <Text style={[modal.title, { color: theme.text }]}>
+            {i18n.t("operation.text_add_operation3")}
+          </Text>
 
-            <View style={styles.amountRow}>
-  {/* MINUS */}
-  <TouchableOpacity
-    style={[styles.signBtn, { backgroundColor: theme.red }]}
-    onPress={() => {
-      if (!editValue.startsWith("-")) {
-        setEditValue(editValue ? `-${editValue}` : "-");
-      }
-    }}
-  >
-    <Text style={styles.signText}>−</Text>
-  </TouchableOpacity>
+          {/* ================= AMOUNT ================= */}
+          <View style={styles.amountRow}>
+            {/* MINUS */}
+            <TouchableOpacity
+              style={[styles.signBtn, { backgroundColor: theme.red }]}
+              onPress={() => {
+                if (!editValue.startsWith("-")) {
+                  setEditValue(editValue ? `-${editValue}` : "-");
+                }
+              }}
+            >
+              <Text style={styles.signText}>−</Text>
+            </TouchableOpacity>
 
-  {/* INPUT */}
-  <TextInput
-    value={editValue}
-    onChangeText={(t) => {
-      // allow only numbers, dot, and minus at first position
-      if (/^-?\d*\.?\d*$/.test(t)) setEditValue(t);
-    }}
-    keyboardType="numeric"
-    placeholder={i18n.t("inputs.text_regular")}
-    style={[styles.amountInput, { color: theme.text }]}
-  />
-
-  {/* PLUS */}
-  <TouchableOpacity
-    style={[styles.signBtn, { backgroundColor: theme.green }]}
-    onPress={() => {
-      if (editValue.startsWith("-")) {
-        setEditValue(editValue.replace("-", ""));
-      }
-    }}
-  >
-    <Text style={styles.signText}>+</Text>
-  </TouchableOpacity>
-</View>
-
+            {/* INPUT */}
             <TextInput
-              value={editDesc}
-              onChangeText={setEditDesc}
-              placeholder={i18n.t('inputs.text_description')}
+              
+              value={editValue}
+              keyboardType="decimal-pad"
+              placeholder={i18n.t("inputs.text_regular")}
               placeholderTextColor="#999"
-              style={[
-                modal.input,
-                { borderColor: theme.border, color: theme.text },
-              ]}
+              onChangeText={(t) => {
+                const v = t.replace(",", ".");
+                if (/^-?\d*\.?\d*$/.test(v)) {
+                  setEditValue(v);
+                }
+              }}
+              style={[styles.amountInput, { color: theme.text }]}
+              returnKeyType="done"
             />
 
-            {/* CURRENCY SELECTOR */}
-            <View
-              style={[
-                modal.input,
-                { borderColor: theme.border, justifyContent: "center" },
-              ]}
-            >
-              <Picker
-                selectedValue={editCurrency?._id}
-                onValueChange={(val) =>
-                  setEditCurrency(currencies.find((c) => c._id === val) ?? currencies[0])
+            {/* PLUS */}
+            <TouchableOpacity
+              style={[styles.signBtn, { backgroundColor: theme.green }]}
+              onPress={() => {
+                if (editValue.startsWith("-")) {
+                  setEditValue(editValue.replace("-", ""));
                 }
-              >
-                {currencies.map((c) => (
-                  <Picker.Item key={c._id} label={c.name} value={c._id} />
-                ))}
-              </Picker>
+              }}
+            >
+              <Text style={styles.signText}>+</Text>
+            </TouchableOpacity>
+          </View>
 
-            </View>
+          {/* ================= DESCRIPTION ================= */}
+          <TextInput
+            value={editDesc}
+            onChangeText={setEditDesc}
+            placeholder={i18n.t("inputs.text_description")}
+            placeholderTextColor="#999"
+            style={[
+              modal.input,
+              { borderColor: theme.border, color: theme.text },
+            ]}
+          />
 
-            <View style={modal.actions}>
-              <TouchableOpacity onPress={() => setEditOp(null)}>
-                <Text style={{ color: theme.text }}>{t('common.text_cancel')}</Text>
-              </TouchableOpacity>
+          {/* ================= CURRENCY ================= */}
+          <View
+            style={[
+              modal.input,
+              { borderColor: theme.border, justifyContent: "center" },
+            ]}
+          >
+            <Picker
+              selectedValue={editCurrency?._id}
+              onValueChange={(val) =>
+                setEditCurrency(
+                  currencies.find((c) => c._id === val) ?? currencies[0]
+                )
+              }
+            >
+              {currencies.map((c) => (
+                <Picker.Item key={c._id} label={c.name} value={c._id} />
+              ))}
+            </Picker>
+          </View>
 
-              <TouchableOpacity onPress={saveEditOperation}>
-                <Text style={{ color: theme.primary, fontWeight: "700" }}>
-                  {i18n.t('common.text_button_save')}
-                </Text>
-              </TouchableOpacity>
-            </View>
+          {/* ================= ACTIONS ================= */}
+          <View style={modal.actions}>
+            <TouchableOpacity onPress={() => setEditOp(null)}>
+              <Text style={{ color: theme.text }}>
+                {i18n.t("common.text_cancel")}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={saveEditOperation}>
+              <Text style={{ color: theme.primary, fontWeight: "700" }}>
+                {i18n.t("common.text_button_save")}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </Modal>
-            {/* ================= add OPERATION MODAL ================= */}
+      </ScrollView>
+    </KeyboardAvoidingView>
+  </SafeAreaView>
+</Modal>
+      {/* ================= add OPERATION MODAL ================= */}
 
-      <Modal visible={addOpVisible} transparent animationType="slide">
-  <View style={modal.overlay}>
-    <View style={[modal.card, { backgroundColor: theme.card }]}>
-      <Text style={[modal.title, { color: theme.text }]}>
-        {i18n.t('operation.text_add_operation')}
-      </Text>
-<View style={styles.amountRow}>
-  {/* MINUS */}
-  <TouchableOpacity
-    style={[styles.signBtn, { backgroundColor: theme.red }]}
-    onPress={() => {
-      if (!newValue.startsWith("-")) {
-        setNewValue(newValue ? `-${newValue}` : "-");
-      }
-    }}
-  >
-    <Text style={styles.signText}>−</Text>
-  </TouchableOpacity>
-
-  {/* INPUT */}
-  <TextInput
-    value={newValue}
-    onChangeText={(t) => {
-      // allow only numbers, dot, and minus at first position
-      if (/^-?\d*\.?\d*$/.test(t)) setNewValue(t);
-    }}
-    keyboardType="numeric"
-    placeholder={i18n.t("inputs.text_regular")}
-    style={[styles.amountInput, { color: theme.text }]}
-  />
-
-  {/* PLUS */}
-  <TouchableOpacity
-    style={[styles.signBtn, { backgroundColor: theme.green }]}
-    onPress={() => {
-      if (newValue.startsWith("-")) {
-        setNewValue(newValue.replace("-", ""));
-      }
-    }}
-  >
-    <Text style={styles.signText}>+</Text>
-  </TouchableOpacity>
-</View>
-
-
-      <TextInput
-        value={newDesc}
-        onChangeText={setNewDesc}
-        placeholder={i18n.t('inputs.text_description')}
-        placeholderTextColor="#999"
-        style={[modal.input, { borderColor: theme.border, color: theme.text }]}
-      />
-
-      <View style={[modal.input, { borderColor: theme.border }]}>
-        <Picker
-          selectedValue={newCurrency?._id}
-          onValueChange={(val) =>
-            setNewCurrency(currencies.find(c => c._id === val)!)
-          }
-        >
-          {currencies.map(c => (
-            <Picker.Item key={c._id} label={c.name} value={c._id} />
-          ))}
-        </Picker>
-      </View>
-
-      <View style={modal.actions}>
-        <TouchableOpacity onPress={() => setAddOpVisible(false)}>
-          <Text style={{ color: theme.text }}>{i18n.t('common.text_cancel')}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={addOperation}>
-          <Text style={{ color: theme.primary, fontWeight: "700" }}>
-            {i18n.t('common.text_button_save')}
+      <Modal
+  visible={addOpVisible}
+  transparent
+  animationType="slide"
+  statusBarTranslucent
+>
+  <SafeAreaView style={{ flex: 1 }}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      style={{ flex: 1 }}
+    >
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{
+          flexGrow: 1,
+          justifyContent: "center",
+          backgroundColor: "rgba(0,0,0,0.6)",
+          padding: 20,
+        }}
+      >
+        <View style={[modal.card, { backgroundColor: theme.card }]}>
+          <Text style={[modal.title, { color: theme.text }]}>
+            {i18n.t("operation.text_add_operation")}
           </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  </View>
+
+          {/* ================= AMOUNT ================= */}
+          <View style={styles.amountRow}>
+            {/* MINUS */}
+            <TouchableOpacity
+              style={[styles.signBtn, { backgroundColor: theme.red }]}
+              onPress={() => {
+                if (!newValue.startsWith("-")) {
+                  setNewValue(newValue ? `-${newValue}` : "-");
+                }
+              }}
+            >
+              <Text style={styles.signText}>−</Text>
+            </TouchableOpacity>
+
+            {/* INPUT */}
+            <TextInput
+              value={newValue}
+              keyboardType="decimal-pad"
+              placeholder={i18n.t("inputs.text_regular")}
+              placeholderTextColor="#999"
+              onChangeText={(t) => {
+                const v = t.replace(",", ".");
+                if (/^-?\d*\.?\d*$/.test(v)) {
+                  setNewValue(v);
+                }
+              }}
+              style={[styles.amountInput, { color: theme.text }]}
+              returnKeyType="done"
+            />
+
+            {/* PLUS */}
+            <TouchableOpacity
+              style={[styles.signBtn, { backgroundColor: theme.green }]}
+              onPress={() => {
+                if (newValue.startsWith("-")) {
+                  setNewValue(newValue.replace("-", ""));
+                }
+              }}
+            >
+              <Text style={styles.signText}>+</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* ================= DESCRIPTION ================= */}
+          <TextInput
+            value={newDesc}
+            onChangeText={setNewDesc}
+            placeholder={i18n.t("inputs.text_description")}
+            placeholderTextColor="#999"
+            style={[
+              modal.input,
+              { borderColor: theme.border, color: theme.text },
+            ]}
+          />
+
+          {/* ================= CURRENCY ================= */}
+          <View
+            style={[
+              modal.input,
+              { borderColor: theme.border, justifyContent: "center" },
+            ]}
+          >
+            <Picker
+              selectedValue={newCurrency?._id}
+              onValueChange={(val) =>
+                setNewCurrency(
+                  currencies.find((c) => c._id === val) ?? currencies[0]
+                )
+              }
+            >
+              {currencies.map((c) => (
+                <Picker.Item key={c._id} label={c.name} value={c._id} />
+              ))}
+            </Picker>
+          </View>
+
+          {/* ================= ACTIONS ================= */}
+          <View style={modal.actions}>
+            <TouchableOpacity onPress={() => setAddOpVisible(false)}>
+              <Text style={{ color: theme.text }}>
+                {i18n.t("common.text_cancel")}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={addOperation}>
+              <Text style={{ color: theme.primary, fontWeight: "700" }}>
+                {i18n.t("common.text_button_save")}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  </SafeAreaView>
 </Modal>
 
     </View>
@@ -790,7 +880,7 @@ const IconBtn = ({ icon, onPress, color }) => (
 /* ================= STYLES ================= */
 
 const styles = StyleSheet.create({
-  container: { flex: 1},
+  container: { flex: 1 },
   section: {
     padding: 6,
     fontWeight: "700",
@@ -812,7 +902,7 @@ const styles = StyleSheet.create({
     margin: 5,
     borderRadius: 6,
   },
-    sectionHeader: {
+  sectionHeader: {
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderBottomWidth: 1,
@@ -822,30 +912,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   amountRow: {
-  flexDirection: "row",
-  alignItems: "center",
-  marginBottom: 10,
-},
-amountInput: {
-  flex: 1,
-  borderWidth: 1,
-  borderRadius: 8,
-  padding: 10,
-  marginHorizontal: 8,
-  textAlign: "center",
-},
-signBtn: {
-  width: 44,
-  height: 44,
-  borderRadius: 22,
-  justifyContent: "center",
-  alignItems: "center",
-},
-signText: {
-  color: "#fff",
-  fontSize: 22,
-  fontWeight: "700",
-},
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  amountInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    marginHorizontal: 8,
+    textAlign: "center",
+  },
+  signBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  signText: {
+    color: "#fff",
+    fontSize: 22,
+    fontWeight: "700",
+  },
 
 });
 
@@ -876,5 +966,5 @@ const modal = StyleSheet.create({
     justifyContent: "space-between",
     marginTop: 15,
   },
-  
+
 });

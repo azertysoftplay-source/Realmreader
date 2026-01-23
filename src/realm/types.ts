@@ -2,6 +2,10 @@ export type Currency = {
   _id: string;
   currency_id: number;
   name: string;
+
+  createdAt: Date;
+  updatedAt: Date;
+  deleted?: boolean;
 };
 
 export type Balance = {
@@ -10,6 +14,10 @@ export type Balance = {
   balance_id: number;
   value: number;
   currency: Currency;
+
+  createdAt: Date;
+  updatedAt: Date;
+  deleted?: boolean;
 };
 
 export type Operation = {
@@ -21,7 +29,12 @@ export type Operation = {
   value: number;
   time?: Date;
   desc?: string;
+
+  createdAt: Date;
+  updatedAt: Date;
+  deleted?: boolean;
 };
+
 
 export type ClientsDetails = {
   _id: string;
@@ -30,4 +43,9 @@ export type ClientsDetails = {
   Clients_contact: string;
   balance: Balance[];
   operation: Operation[];
+
+  createdAt: Date;
+  updatedAt: Date;
+  deleted?: boolean;
 };
+

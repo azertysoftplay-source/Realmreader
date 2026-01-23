@@ -3,10 +3,11 @@ import {
   getFirestore,
   writeBatch,
   doc,
+  serverTimestamp,
 } from "@react-native-firebase/firestore";
 
 /**
- * Migrate Realm → Firestore (MODULAR, BATCHED, TS-SAFE)
+ * Migrate Realm → Firestore (SAFE + SOFT DELETE READY)
  */
 const migrateClientsToFirestore = async (
   realmRaw: any,
@@ -15,7 +16,6 @@ const migrateClientsToFirestore = async (
 ) => {
   if (!user) throw new Error("User not signed in");
 
-  // 🔥 THE IMPORTANT FIX (Realm typing)
   const realm = realmRaw as any;
 
   const app = getApp();
@@ -24,12 +24,13 @@ const migrateClientsToFirestore = async (
 
   const clients = realm.objects("Clients_details");
   const currencies = realm.objects("currency");
+  const operations= realm.objects("operation");
 
   /* ---------------- CALCULATE WORK ---------------- */
   let totalWorkItems = currencies.length;
 
   clients.forEach((c: any) => {
-    totalWorkItems += 1; // client
+    totalWorkItems += 1;
     totalWorkItems += c.balance.length;
     totalWorkItems += c.operation.length;
   });
@@ -38,36 +39,35 @@ const migrateClientsToFirestore = async (
   let batch = writeBatch(db);
   let batchCounter = 0;
 
-  /* ---------------- BATCH HELPER ---------------- */
   const commitIfFull = async (force = false) => {
     batchCounter++;
     processedCount++;
 
-    const progress = Math.floor(
-      (processedCount / totalWorkItems) * 100
+    onProgress(
+      Math.floor((processedCount / totalWorkItems) * 100)
     );
-    onProgress(progress);
 
     if (batchCounter >= 400 || force) {
       await batch.commit();
       batch = writeBatch(db);
       batchCounter = 0;
-
-      // yield to UI thread (prevents freeze)
-      await new Promise<void>((r) => setTimeout(r, 10));
+      await new Promise<void>((resolve) =>
+  setTimeout(() => resolve(), 10)
+);
     }
   };
 
   /* ---------------- CURRENCIES ---------------- */
   for (const cur of currencies) {
-    const curRef = doc(db, "currencies", String(cur._id));
-
     batch.set(
-      curRef,
+      doc(db, "currencies", String(cur._id)),
       {
         currency_id: cur.currency_id,
+        createdAt:cur.createdAt,
         name: cur.name,
         userId,
+        deleted: cur.deleted,
+        updatedAt: serverTimestamp(),
       },
       { merge: true }
     );
@@ -75,7 +75,7 @@ const migrateClientsToFirestore = async (
     await commitIfFull();
   }
 
-  /* ---------------- CLIENTS + NESTED DATA ---------------- */
+  /* ---------------- CLIENTS ---------------- */
   for (const client of clients) {
     const clientRef = doc(db, "clients", String(client._id));
 
@@ -86,24 +86,26 @@ const migrateClientsToFirestore = async (
         Clients_name: client.Clients_name,
         Clients_contact: client.Clients_contact,
         userId,
+        deleted: client.deleted,
+        updatedAt: serverTimestamp(),
       },
       { merge: true }
     );
 
     await commitIfFull();
 
-    /* ---- BALANCES ---- */
+    /* ---- BALANCES (ONLY THIS CLIENT) ---- */
     for (const bal of client.balance) {
-      const balRef = doc(db, "balances", String(bal._id));
-
       batch.set(
-        balRef,
+        doc(db, "balances", String(bal._id)),
         {
           client_id: String(client._id),
-          balance_id: bal.balance_id || "",
-          value: bal.value || 0,
-          currency: bal.currency?._id || null,
+          balance_id: bal.balance_id,
+          value: bal.value,
+          currency: bal.currency?._id ?? null,
           userId,
+          deleted: false,
+          updatedAt: serverTimestamp(),
         },
         { merge: true }
       );
@@ -111,30 +113,32 @@ const migrateClientsToFirestore = async (
       await commitIfFull();
     }
 
-    /* ---- OPERATIONS ---- */
-    for (const op of client.operation) {
-      const opRef = doc(db, "operations", String(op._id));
-
-      batch.set(
-        opRef,
-        {
-          client_id: String(client._id),
-          operation_id: op.operation_id || "",
-          type: op.type || "",
-          value: op.value || 0,
-          currency: op.currency?._id || null,
-          time: op.time ? op.time.toISOString() : null,
-          desc: op.desc || "",
-          userId,
-        },
-        { merge: true }
-      );
-
-      await commitIfFull();
-    }
+    /* ---- OPERATIONS (FIXED) ---- */
+    
   }
+ for (const op of operations) {
+  batch.set(
+    doc(db, "operations", String(op._id)),
+    {
+      client_id: op.client_id,
+      operation_id: op.operation_id,
+      type: op.type,
+      value: op.value,
+      currency: op.currency?._id ?? null,
+      // FIX: Convert Realm date to JS Date
+      time: op.time ? new Date(op.time) : null,
+      desc: op.desc ?? "",
+      userId,
+      deleted: op.deleted,
+      createdAt: op.createdAt ? new Date(op.createdAt) : serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+  await commitIfFull();
+}
 
-  /* ---------------- FINAL COMMIT ---------------- */
+
   if (batchCounter > 0) {
     await batch.commit();
   }

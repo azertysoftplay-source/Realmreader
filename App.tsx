@@ -61,7 +61,24 @@ function RealmWrapper({ children }: { children: React.ReactNode }) {
     <RealmProvider
       key={userId} // 🔥 forces Realm reload per user
       schema={[Clients_details, balance, operation, currency]}
-      schemaVersion={3}
+      schemaVersion={5}
+   onMigration={(oldRealm, newRealm) => {
+  if (oldRealm.schemaVersion < 5) {
+    const now = new Date();
+
+    const init = (obj: any) => {
+      if (obj.createdAt == null) obj.createdAt = now;
+      if (obj.updatedAt == null) obj.updatedAt = now;
+      if (obj.deleted == null) obj.deleted = false;
+    };
+
+    newRealm.objects("Clients_details").forEach(init);
+    newRealm.objects("operation").forEach(init);
+    newRealm.objects("currency").forEach(init);
+    newRealm.objects("balance").forEach(init);
+  }
+}}
+
       path={userId ? `user_${userId}.realm` : "default.realm"}
     >
       {children}

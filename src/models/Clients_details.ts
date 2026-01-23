@@ -8,9 +8,13 @@ export const Clients_details = {
     Clients_contact: "string",
     balance: "balance[]",
     operation: "operation[]",
+
+    // ✅ NEW
+    createdAt: "date",
+    updatedAt: "date",
+   deleted: "bool?",
   },
 };
-
 export const balance = {
   name: "balance",
   primaryKey: "_id",
@@ -20,9 +24,13 @@ export const balance = {
     balance_id: "int",
     value: "double",
     currency: "currency",
+
+    // ✅ NEW
+    createdAt: "date",
+    updatedAt: "date",
+   deleted: "bool?",
   },
 };
-
 export const operation = {
   name: "operation",
   primaryKey: "_id",
@@ -35,9 +43,13 @@ export const operation = {
     value: "double",
     time: "date?",
     desc: "string?",
+
+    // ✅ NEW
+    createdAt: "date",
+    updatedAt: "date",
+   deleted: "bool?",
   },
 };
-
 export const currency = {
   name: "currency",
   primaryKey: "_id",
@@ -45,5 +57,10 @@ export const currency = {
     _id: "string",
     currency_id: "int",
     name: "string",
+
+    // ✅ NEW
+    createdAt: "date",
+    updatedAt: "date",
+    deleted: "bool?",
   },
 };

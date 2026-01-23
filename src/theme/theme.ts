@@ -4,6 +4,7 @@ export const lightTheme = {
   card: "#f5f5f5",
   border: "#dddddd",
   input: "#ffffff", // 👈 input bg
+  primary:'#007AFF',
 
   placeholder: "#9e9e9e", // 👈 added
 
@@ -16,6 +17,7 @@ export const darkTheme = {
   text: "#ffffff",
   card: "#222222",
   border: "#444444",
+  primary:'#007AFF',
 
   placeholder: "#aaaaaa", // 👈 added (lighter for dark bg)
  input: "#1e1e1e",

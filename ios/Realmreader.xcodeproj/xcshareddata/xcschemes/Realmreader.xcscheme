@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-               BuildableName = "Realmreader.app"
+               BuildableName = "daftar.app"
                BlueprintName = "Realmreader"
                ReferencedContainer = "container:Realmreader.xcodeproj">
             </BuildableReference>
@@ -55,7 +55,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "Realmreader.app"
+            BuildableName = "daftar.app"
             BlueprintName = "Realmreader"
             ReferencedContainer = "container:Realmreader.xcodeproj">
          </BuildableReference>
@@ -64,7 +64,7 @@
          <EnvironmentVariable
             key = "path"
             value = "/Users/admin/.nvm/versions/node/v20.19.6/bin/node&#10;"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </EnvironmentVariable>
       </EnvironmentVariables>
    </LaunchAction>
@@ -79,7 +79,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "Realmreader.app"
+            BuildableName = "daftar.app"
             BlueprintName = "Realmreader"
             ReferencedContainer = "container:Realmreader.xcodeproj">
          </BuildableReference>

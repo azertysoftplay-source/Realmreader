@@ -25,17 +25,13 @@ import { useTranslation } from "react-i18next";
 import { getAuth } from "@react-native-firebase/auth";
 import { getApp } from "@react-native-firebase/app";
 import { getFirestore, doc, deleteDoc } from "@react-native-firebase/firestore";
+import { ClientsDetails, Currency } from "../realm/types";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useEffect } from "react";
 
 
 /* ================= TYPES ================= */
 
-type Client = Realm.Object & {
-  _id: string;
-  Clients_id: number;
-  Clients_name: string;
-  Clients_contact?: string;
-  balance: { value: number }[];
-};
 
 type RootStackParamList = {
   ClientsDetails: { clientId: string };
@@ -62,6 +58,22 @@ const DarkTheme = {
   primary: "#0A84FF",
   danger: "#FF453A",
 };
+const convertToBase = (
+  amount: number,
+  fromId: string,
+  baseId: string,
+  rates: Record<string, number>
+) => {
+  if (fromId === baseId) return amount;
+
+  const direct = rates[`${fromId}_${baseId}`];
+  if (direct) return amount * direct;
+
+  const inverse = rates[`${baseId}_${fromId}`];
+  if (inverse) return amount / inverse;
+
+  return 0; // ❗ no rate defined
+};
 
 /* ================= SCREEN ================= */
 
@@ -71,16 +83,21 @@ export default function ClientsScreen() {
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const realm = useRealm();
-  const clients = useQuery<Client>("Clients_details");
+  const clients = useQuery<ClientsDetails>("Clients_details").filtered(
+  "deleted == false OR deleted == null"
+);
 
   const scheme = useColorScheme();
   const theme = scheme === "dark" ? DarkTheme : LightTheme;
 
   const [search, setSearch] = useState("");
+  const [baseCurrencyId, setBaseCurrencyId] = useState<string | null>(null);
+const [rates, setRates] = useState<Record<string, number>>({});
+
 
   /* ----- MODAL STATE ----- */
   const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState<Client | null>(null);
+  const [editing, setEditing] = useState<ClientsDetails | null>(null);
   const [name, setName] = useState("");
   const [contact, setContact] = useState("");
 
@@ -112,27 +129,89 @@ export default function ClientsScreen() {
       ),
     });
   }, [navigation, theme,i18n.language]);
+ 
+
+
+  useEffect(() => {
+  const load = async () => {
+    const base = await AsyncStorage.getItem("defaultCurrency");
+    const json = await AsyncStorage.getItem("exchangeRates");
+
+    setBaseCurrencyId(base);
+    setRates(json ? JSON.parse(json) : {});
+  };
+
+  load();
+
+  // 🔄 realtime update when screen is focused
+  const unsubscribe = navigation.addListener("focus", load);
+  return unsubscribe;
+}, [navigation]);
+ 
+
+
+
+
+
+
+
+const getClientBalance = (clientId: string) => {
+  if (!baseCurrencyId) return 0;
+
+  const ops = realm
+    .objects("operation")
+    .filtered(
+      "client_id == $0 AND deleted != true AND type != 'check'",
+      clientId
+    );
+
+  let total = 0;
+
+  ops.forEach((op: any) => {
+    total += convertToBase(
+      op.value,
+      op.currency._id,
+      baseCurrencyId,
+      rates
+    );
+  });
+
+  return total;
+};
+const currencies = useQuery<Currency>("currency")
+  .filtered("deleted == false OR deleted == null");
+const baseCurrency = useMemo<Currency | null>(() => {
+  return currencies.find(c => c._id === baseCurrencyId) ?? null;
+}, [currencies, baseCurrencyId]);
 
   /* ================= SAVE ================= */
 
   const handleSave = () => {
     if (!name.trim()) return;
 
-    realm.write(() => {
-      if (editing) {
-        editing.Clients_name = name;
-        editing.Clients_contact = contact;
-      } else {
-        realm.create("Clients_details", {
-          _id: `${Date.now()}`,
-          Clients_id: Date.now(),
-          Clients_name: name,
-          Clients_contact: contact,
-          balance: [],
-          operation: [],
-        });
-      }
+   realm.write(() => {
+  const now = new Date();
+
+  if (editing) {
+    editing.Clients_name = name;
+    editing.Clients_contact = contact;
+    editing.updatedAt = now; // ✅
+  } else {
+    realm.create("Clients_details", {
+      _id: `${Date.now()}`,
+      Clients_id: Date.now(),
+      Clients_name: name,
+      Clients_contact: contact,
+      balance: [],
+      operation: [],
+
+      createdAt: now, // ✅
+      updatedAt: now, // ✅
+      deleted: false, // ✅
     });
+  }
+});
+
 
     setShowModal(false);
     setEditing(null);
@@ -142,7 +221,7 @@ export default function ClientsScreen() {
 
   /* ================= DELETE ================= */
 
- const handleDelete = (client: Client) => {
+ const handleDelete = (client: ClientsDetails) => {
   Alert.alert(
     "Delete client",
     `Delete ${client.Clients_name}?`,
@@ -161,13 +240,12 @@ export default function ClientsScreen() {
             const db = getFirestore(app);
 
             /* 🔥 FIRESTORE DELETE */
-            await deleteDoc(
-              doc(db, "users", user.uid, "clients", client._id.toString())
-            );
+         
 
             /* 💾 REALM DELETE */
             realm.write(() => {
-              realm.delete(client);
+              client.deleted=true
+              client.updatedAt= new Date()
             });
 
           } catch (e: any) {
@@ -179,7 +257,7 @@ export default function ClientsScreen() {
   );
 };
 
-  const renderRightActions = (item: Client) => (
+  const renderRightActions = (item: ClientsDetails) => (
     <TouchableOpacity
       onPress={() => handleDelete(item)}
       style={[
@@ -211,7 +289,7 @@ export default function ClientsScreen() {
       a.Clients_name.localeCompare(b.Clients_name)
     );
 
-    const groups: Record<string, Client[]> = {};
+    const groups: Record<string, ClientsDetails[]> = {};
     list.forEach((c) => {
       const letter = c.Clients_name[0].toUpperCase();
       groups[letter] ??= [];
@@ -294,16 +372,19 @@ export default function ClientsScreen() {
                 {item.Clients_name}
               </Text>
 
-              {/* <Text
-                style={[
-                  styles.balance,
-                  { color: theme.primary },
-                ]}
-              >
-                {item.balance
-                  .reduce((s, b) => s + b.value, 0)
-                  .toFixed(2)}
-              </Text> */}
+               <Text
+    style={[
+      styles.balance,
+      {
+        color: getClientBalance(item._id) >= 0
+          ? "#2E7D32"
+          : "#C62828",
+      },
+    ]}
+  >
+    {getClientBalance(item._id).toFixed(2)}{" "}
+    { baseCurrency?.name}
+  </Text>
             </TouchableOpacity>
           </Swipeable>
         )}

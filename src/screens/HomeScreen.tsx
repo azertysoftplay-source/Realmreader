@@ -23,8 +23,12 @@ export default function HomeScreen() {
   const user = auth.currentUser;
   const realm = useRealm();
   const scheme = useColorScheme();
-  const clients = useQuery<ClientsDetails>("Clients_details");
-  const operations = useQuery<Operation>("operation").sorted("time", true);
+  const clients = useQuery<ClientsDetails>("Clients_details").filtered(
+  "deleted == false OR deleted == null"
+);
+  const operations = useQuery<Operation>("operation").filtered(
+  "deleted == false OR deleted == null"
+).sorted("time", true);
 
   const [isInitialSync, setIsInitialSync] = useState(false);
 
@@ -80,8 +84,8 @@ export default function HomeScreen() {
 
   /* ================= STATS ================= */
   const stats = useMemo(() => {
-    const income = operations.filtered("value > 0").sum("value") || 0;
-    const expense = operations.filtered("value < 0").sum("value") || 0;
+    const income = operations.filtered("value > 0 AND (deleted == false OR deleted == null)").sum("value") || 0;
+    const expense = operations.filtered("value < 0 AND (deleted == false OR deleted == null)").sum("value") || 0;
     return {
       income,
       expense,

@@ -185,12 +185,29 @@
     "text_send": "Send a message..."
   },
    "cloud": {
-    "title": "Cloud Synchronization",
     "description": "Keep your data safe by backing up to your personal cloud account.",
     "backup": "Backup to Cloud",
     "restore": "Restore from Cloud",
     "syncingProgress": "Syncing... {{progress}}%",
-    "restoring": "Restoring..."
+    "restoring": "Restoring...",
+     "sync_start": "Sync started",
+  "sync_success": "Sync completed successfully",
+  "sync_error": "Sync failed",
+    "backup_start": "Backup started",
+  "backup_success": "Backup completed",
+  "backup_error": "Backup failed",
+  "restore_start": "Restore started",
+  "restore_success": "Restore completed",
+  "restore_error": "Restore failed",
+    "lastSync": "Last sync",
+    "title": "Cloud Sync",
+  
+   
+    "success": "Success",
+    "backup_complete": "Data backed up successfully.",
+    "restore_complete": "Data restored successfully.",
+    "restore_confirm_title": "Restore Data?",
+    "restore_confirm_msg": "This will overwrite your local data with the cloud version. Continue?"
   },
   "account": {
     "text_profile": "Profile",
@@ -236,7 +253,21 @@
   },
    "settings": {
     "defaultCurrency": "Default currency",
-    "currencyHint": "Used for dashboard totals and reports"
+    "currencyHint": "Used for dashboard totals and reports",
+      "changePassword": "Change Password",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "passwordStrength": "Password strength",
+    "passwordWeak": "Weak",
+    "passwordMedium": "Medium",
+    "passwordStrong": "Strong",
+    "passwordUpdated": "Password updated successfully"
+  },
+   "errors": {
+    "wrongPassword": "Current password is incorrect",
+    "passwordTooShort": "Password must be at least 6 characters",
+    "tooManyRequests": "Too many attempts, please try again later",
+    "generic": "Something went wrong, please try again"
   },
   "rates": {
   "title": "Exchange Rates",
