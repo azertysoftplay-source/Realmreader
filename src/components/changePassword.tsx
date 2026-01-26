@@ -7,6 +7,7 @@ import {
   Modal,
   Alert,
   StyleSheet,
+  Pressable,
 } from "react-native";
 import { getAuth, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "@react-native-firebase/auth";
 import { getApp } from "@react-native-firebase/app";
@@ -14,7 +15,7 @@ import { useTheme } from "../theme";
 import i18n from "../i18n";
 
 export default function ChangePasswordSection() {
-  const { theme } = useTheme();
+  const { theme ,isDark} = useTheme();
 
  
 
@@ -83,18 +84,46 @@ const auth = getAuth(getApp());
       Alert.alert("Error", e.message || "Password update failed");
     }
   };
+  const Row = ({
+    title,
+    onPress,
+    right,
+    danger,
+  }: {
+    title: string;
+    onPress?: () => void;
+    right?: React.ReactNode;
+    danger?: boolean;
+  }) => (
+    <Pressable
+      onPress={onPress}
+     style={({ pressed }) => [
+      styles.row,
+        { borderBottomColor: isDark ? "#38383A" : "#C6C6C8" },
+      pressed && { backgroundColor: isDark ? "#38383A" : "#C6C6C8" },
+    ]}
+    >
+      <Text style={[styles.rowText, { color: danger ? "#FF453A" : theme.text }]}>
+
+
+    
+        {title}
+      </Text>
+      {right}
+    </Pressable>
+  );
 
   return (
     <>
       {/* ---------- OPEN BUTTON ---------- */}
-      <TouchableOpacity
+      <Row
         onPress={() => setVisible(true)}
-        style={[styles.card, { backgroundColor: theme.card }]}
-      >
-        <Text style={[styles.title, { color: theme.text }]}>
-          {i18n.t("settings.changePassword")}
-        </Text> 
-      </TouchableOpacity>
+       // style={[styles.card, { backgroundColor: theme.card }]}
+      
+        
+          title={i18n.t("settings.changePassword")}
+        
+      />
 
       {/* ---------- MODAL ---------- */}
       <Modal visible={visible} transparent animationType="slide">
@@ -212,5 +241,25 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     gap: 20,
     marginTop: 15,
+  }, row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#C6C6C8",
+  },
+  rowText: {
+    fontSize: 16,
+  },
+  lastSyncText: {
+    marginTop: 8,
+    marginLeft: 16,
+    fontSize: 12,
+    color: "#8E8E93",
+  },
+  pickerRow: {
+    paddingHorizontal: 10,
   },
 });

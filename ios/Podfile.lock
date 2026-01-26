@@ -3887,7 +3887,7 @@ PODS:
   - RealmJS (20.2.0):
     - React
   - RecaptchaInterop (101.0.0)
-  - RNAppleAuthentication (2.5.0):
+  - RNAppleAuthentication (2.5.1):
     - React-Core
   - RNBootSplash (6.3.11):
     - boost
@@ -4613,7 +4613,7 @@ SPEC CHECKSUMS:
   ReactCommon: 801eff8cb9c940c04d3a89ce399c343ee3eff654
   RealmJS: 1c37c6bdfe060f4caa0f9175aa0eedb962622ee1
   RecaptchaInterop: 11e0b637842dfb48308d242afc3f448062325aba
-  RNAppleAuthentication: 9027af8aa92b4719ef1b6030a8e954d37079473a
+  RNAppleAuthentication: a89c9804592b38ed4ab11f0aee68d05ba12ad432
   RNBootSplash: 7fcc9a58ae343aeb1a1dd49f9030832fe432c544
   RNCAsyncStorage: fd44f4b03e007e642e98df6726737bc66e9ba609
   RNCPicker: 35fc66f352403cdfe99d53b541f5180482ca2bc5

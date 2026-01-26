@@ -319,7 +319,7 @@ const baseCurrency = useMemo<Currency | null>(() => {
             color: theme.text,
           },
         ]}
-        placeholder="Search clients…"
+        placeholder={i18n.t('product.text_search')}
         placeholderTextColor={
           scheme === "dark" ? "#AAA" : "#666"
         }

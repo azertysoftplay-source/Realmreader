@@ -2,12 +2,12 @@ import React from "react";
 import { Text } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import Icon from "react-native-vector-icons/Ionicons";
-import i18n from "../i18n";
-
 import HomeStack from "../stacks/HomeStack";
 import ClientsStack from "../stacks/ClientsStack";
 import OperationsStack from "../stacks/OperationsStack";
 import SettingsStack from "../stacks/SettingsStack";
+import { useTranslation } from "react-i18next";
+import { useTheme } from "../theme";
 
 export type RootTabParamList = {
   HomeTab: undefined;
@@ -19,6 +19,8 @@ export type RootTabParamList = {
 const Tab = createBottomTabNavigator<RootTabParamList>();
 
 export default function TabNavigator() {
+   const { t, i18n } = useTranslation();
+    const { theme, isDark } = useTheme();
   return (
     <Tab.Navigator
       id="MainTab"
@@ -80,7 +82,7 @@ export default function TabNavigator() {
         component={SettingsStack}
         options={{
           tabBarLabel: ({ color }) => (
-            <Text style={{ color }}>{i18n.t("tabbar.text_account")}</Text>
+            <Text style={{ color }}>{i18n.t("account.text_setting")}</Text>
           ),
         }}
       />

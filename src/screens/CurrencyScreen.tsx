@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useLayoutEffect, useState } from "react";
 import {
   View,
   Text,
@@ -14,7 +14,13 @@ import { useTranslation } from "react-i18next";
 import { operation } from "../models/Clients_details";
 import { getAuth } from "@react-native-firebase/auth";
 import { getApp } from "@react-native-firebase/app";
-export default function CurrencyScreen() {
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { OperationsStackParamList } from "../stacks/OperationsStack";
+type Props = NativeStackScreenProps<
+  OperationsStackParamList,
+  "OperationsMain"
+>;
+export default function CurrencyScreen({ navigation }: Props) {
   const { theme } = useTheme();
   const realm = useRealm();
   const currencies = useQuery<any>("currency").filtered(
@@ -34,6 +40,13 @@ const operations = useQuery<any>("operation").filtered(
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [toDeleteId, setToDeleteId] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      title: i18n.t("tabbar.text_order"),
+      headerStyle: { backgroundColor: theme.card },
+      headerTintColor: theme.text,
+    });
+  }, [navigation,i18n,theme]);
 
   // ✅ RESOLVE REALM OBJECTS SAFELY
   const selected = selectedId
@@ -122,9 +135,9 @@ const operations = useQuery<any>("operation").filtered(
 
   return (
     <View style={{ flex: 1, padding: 20 }}>
-      <Text style={{ fontSize: 24, fontWeight: "bold", marginBottom: 10 }}>
+      {/* <Text style={{ fontSize: 24, fontWeight: "bold", marginBottom: 10 }}>
         Currency Management
-      </Text>
+      </Text> */}
 
       <TextInput
         value={name}
@@ -174,7 +187,7 @@ const operations = useQuery<any>("operation").filtered(
                   padding: 15,
                   borderWidth: 1,
                   borderColor: theme.border,
-                  backgroundColor: theme.card,
+                  backgroundColor: theme.input,
                   borderRadius: 8,
                   flexDirection: "row",
                   justifyContent: "space-between",

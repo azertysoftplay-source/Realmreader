@@ -86,7 +86,9 @@
     "income": "الدخل",
     "expense": "المصروف",
     "clients": "العملاء",
-    "recent": "آخر العمليات"
+    "recent": "آخر العمليات",
+     "topCreditors": "أكبر الدائنين",
+    "topDebtors": "أكبر المدينين"
   },
   "settings": {
     "defaultCurrency": "العملة الافتراضية",

@@ -11,11 +11,20 @@ import {
 const toDate = (v: any): Date => {
   if (!v) return new Date();
   if (v instanceof Date) return v;
-  if (typeof v?.toDate === "function") return v.toDate(); // Firestore Timestamp
+  if (typeof v?.toDate === "function") return v.toDate();
   return new Date(v);
 };
 
-const migrateFirestoreToRealm = async (realmRaw: Realm, user: any) => {
+/**
+ * @param realmRaw Realm instance
+ * @param user Firebase user
+ * @param onProgress optional progress callback (0 → 1)
+ */
+const migrateFirestoreToRealm = async (
+  realmRaw: Realm,
+  user: any,
+  onProgress?: (progress: number) => void
+) => {
   if (!user) throw new Error("User not signed in");
 
   const realm = realmRaw as any;
@@ -31,6 +40,17 @@ const migrateFirestoreToRealm = async (realmRaw: Realm, user: any) => {
     getDocs(query(collection(db, "currencies"), where("userId", "==", userId))),
     getDocs(query(collection(db, "operations"), where("userId", "==", userId))),
   ]);
+
+  const total =
+    currenciesSnap.size +
+    clientsSnap.size +
+    operationsSnap.size;
+
+  let processed = 0;
+  const tick = () => {
+    processed++;
+    onProgress?.(processed / total);
+  };
 
   realm.write(() => {
     /* ---------- CURRENCIES ---------- */
@@ -49,6 +69,8 @@ const migrateFirestoreToRealm = async (realmRaw: Realm, user: any) => {
         },
         Realm.UpdateMode.Modified
       );
+
+      tick();
     });
 
     /* ---------- CLIENTS ---------- */
@@ -70,20 +92,22 @@ const migrateFirestoreToRealm = async (realmRaw: Realm, user: any) => {
         },
         Realm.UpdateMode.Modified
       );
+
+      tick();
     });
 
     /* ---------- OPERATIONS ---------- */
     operationsSnap.forEach((docSnap) => {
       const d = docSnap.data();
 
-      // 🔥 skip soft-deleted operations
-      //if (d.deleted === true) return;
-
       const client = realm.objectForPrimaryKey(
         "Clients_details",
         d.client_id
       );
-      if (!client || client.deleted) return;
+      if (!client || client.deleted) {
+        tick();
+        return;
+      }
 
       const op = realm.create(
         "operation",
@@ -108,9 +132,12 @@ const migrateFirestoreToRealm = async (realmRaw: Realm, user: any) => {
       if (!client.operation.some((o: any) => o._id === op._id)) {
         client.operation.push(op);
       }
+
+      tick();
     });
   });
 
+  onProgress?.(1); // ✅ ensure 100%
 };
 
 export default migrateFirestoreToRealm;

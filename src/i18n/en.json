@@ -88,7 +88,9 @@
     "income": "Income",
     "expense": "Expense",
     "clients": "Clients",
-    "recent": "Recent Operations"
+    "recent": "Recent Operations",
+       "topCreditors": "Top Creditors",
+    "topDebtors": "Top Debtors"
   },
   "home": {
     "welcome": "Welcome back!",
